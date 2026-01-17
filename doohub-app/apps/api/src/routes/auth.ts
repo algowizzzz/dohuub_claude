@@ -1,0 +1,380 @@
+import { Router } from 'express';
+import { prisma } from '@doohub/database';
+import { generateTokens } from '../utils/jwt';
+import { createOtp, verifyOtp, sendOtpEmail } from '../utils/otp';
+import { authenticate, AuthRequest } from '../middleware/auth';
+
+const router = Router();
+
+// Register with email - creates user and returns token directly (OTP disabled)
+router.post('/register', async (req, res) => {
+  try {
+    const { email, profile } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Check if user exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'User already exists. Please login instead.' });
+    }
+
+    // Create user directly (no OTP)
+    const user = await prisma.user.create({
+      data: {
+        email,
+        isEmailVerified: true,
+        profile: profile ? {
+          create: {
+            firstName: profile.firstName || '',
+            lastName: profile.lastName || '',
+          },
+        } : {
+          create: {
+            firstName: '',
+            lastName: '',
+          },
+        },
+      },
+      include: { profile: true },
+    });
+
+    // Generate tokens
+    const tokens = generateTokens({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          profile: user.profile,
+          isEmailVerified: user.isEmailVerified,
+        },
+        token: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      },
+    });
+  } catch (error) {
+    console.error('Register error:', error);
+    res.status(500).json({ error: 'Failed to register' });
+  }
+});
+
+// Login with email - returns token directly (OTP disabled)
+router.post('/login', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Find user
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { profile: true, vendor: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found. Please register first.' });
+    }
+
+    // Generate tokens directly (no OTP)
+    const tokens = generateTokens({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          profile: user.profile,
+          isEmailVerified: user.isEmailVerified,
+          vendorId: user.vendor?.id,
+        },
+        token: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      },
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Failed to login' });
+  }
+});
+
+// Verify OTP - completes registration or login
+router.post('/verify-otp', async (req, res) => {
+  try {
+    const { email, otp, isRegistration, profile } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ error: 'Email and OTP are required' });
+    }
+
+    // DEV MODE: Skip OTP verification with code "000000"
+    const isDev = process.env.NODE_ENV !== 'production';
+    const isDevBypass = isDev && otp === '000000';
+    
+    // Verify OTP (skip in dev mode with bypass code)
+    const isValid = isDevBypass || await verifyOtp(email, otp);
+
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid or expired OTP' });
+    }
+
+    let user = await prisma.user.findUnique({
+      where: { email },
+      include: { profile: true },
+    });
+
+    // If registration, create new user
+    if (isRegistration && !user) {
+      user = await prisma.user.create({
+        data: {
+          email,
+          isEmailVerified: true,
+          profile: profile ? {
+            create: {
+              firstName: profile.firstName || '',
+              lastName: profile.lastName || '',
+            },
+          } : undefined,
+        },
+        include: { profile: true },
+      });
+    } else if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    } else {
+      // Update email verification status
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { isEmailVerified: true },
+        include: { profile: true },
+      });
+    }
+
+    // Generate tokens
+    const tokens = generateTokens({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          profile: user.profile,
+          isEmailVerified: user.isEmailVerified,
+        },
+        token: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      },
+    });
+  } catch (error) {
+    console.error('Verify OTP error:', error);
+    res.status(500).json({ error: 'Failed to verify OTP' });
+  }
+});
+
+// Resend OTP
+router.post('/resend-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const otp = await createOtp(email);
+    await sendOtpEmail(email, otp);
+
+    res.json({
+      success: true,
+      message: 'OTP resent to your email',
+    });
+  } catch (error) {
+    console.error('Resend OTP error:', error);
+    res.status(500).json({ error: 'Failed to resend OTP' });
+  }
+});
+
+// Google Sign-In (simplified - would need Firebase Admin SDK in production)
+router.post('/google-signin', async (req, res) => {
+  try {
+    const { email, displayName, photoURL, googleId } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Find or create user
+    let user = await prisma.user.findUnique({
+      where: { email },
+      include: { profile: true },
+    });
+
+    if (!user) {
+      // Parse display name
+      const nameParts = (displayName || '').split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+
+      user = await prisma.user.create({
+        data: {
+          email,
+          firebaseUid: googleId,
+          isEmailVerified: true,
+          profile: {
+            create: {
+              firstName,
+              lastName,
+              avatar: photoURL,
+            },
+          },
+        },
+        include: { profile: true },
+      });
+    }
+
+    // Generate tokens
+    const tokens = generateTokens({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          profile: user.profile,
+          isEmailVerified: user.isEmailVerified,
+        },
+        token: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      },
+    });
+  } catch (error) {
+    console.error('Google sign-in error:', error);
+    res.status(500).json({ error: 'Failed to sign in with Google' });
+  }
+});
+
+// Logout
+router.post('/logout', authenticate, async (req: AuthRequest, res) => {
+  // In a full implementation, you would invalidate the token
+  // by adding it to a blacklist or using refresh token rotation
+  res.json({
+    success: true,
+    message: 'Logged out successfully',
+  });
+});
+
+// DEV ONLY: Direct login without OTP (for testing)
+router.post('/dev-login', async (req, res) => {
+  // Only allow in development
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ error: 'Not available in production' });
+  }
+
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { profile: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Generate tokens
+    const tokens = generateTokens({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          profile: user.profile,
+          isEmailVerified: user.isEmailVerified,
+        },
+        token: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      },
+    });
+  } catch (error) {
+    console.error('Dev login error:', error);
+    res.status(500).json({ error: 'Failed to login' });
+  }
+});
+
+// Get current user
+router.get('/me', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      include: {
+        profile: true,
+        addresses: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: user.id,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        profile: user.profile,
+        addresses: user.addresses,
+        isEmailVerified: user.isEmailVerified,
+      },
+    });
+  } catch (error) {
+    console.error('Get me error:', error);
+    res.status(500).json({ error: 'Failed to get user' });
+  }
+});
+
+export default router;
+
