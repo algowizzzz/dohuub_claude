@@ -76,7 +76,7 @@ export default function MichelleListingsPage() {
   );
 
   return (
-    <PortalLayout title="DoHuub Official Listings" subtitle="Manage Michelle's priority listings">
+    <PortalLayout title="Michelle's Stores" subtitle="Manage your business identities across all service categories">
       <div className="space-y-6">
         {/* Priority Banner */}
         <div className="bg-gradient-to-r from-secondary-50 to-secondary-100 border border-secondary-200 rounded-xl p-6">
@@ -130,7 +130,7 @@ export default function MichelleListingsPage() {
               className="pl-10"
             />
           </div>
-          <Link href="/admin/michelle/new">
+          <Link href="/admin/michelle-profiles/new">
             <Button className="bg-secondary hover:bg-secondary-600">
               <Plus className="h-4 w-4 mr-2" />
               New DoHuub Listing
@@ -179,7 +179,7 @@ export default function MichelleListingsPage() {
                       Revenue: <span className="font-semibold text-gray-900">${listing.revenue.toLocaleString()}</span>
                     </span>
                     <div className="flex gap-2">
-                      <Link href={`/admin/michelle/${listing.id}/edit`}>
+                      <Link href={`/admin/michelle-profiles/${listing.id}/edit`}>
                         <Button variant="outline" size="sm">
                           <Edit2 className="h-4 w-4" />
                         </Button>

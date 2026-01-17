@@ -7,17 +7,14 @@ import { useAuthStore } from "@/stores/authStore";
 import {
   LayoutDashboard,
   Package,
-  ShoppingBag,
-  Star,
-  TrendingUp,
-  MapPin,
-  Clock,
+  ShoppingCart,
   CreditCard,
   Settings,
   Users,
-  Store,
-  AlertTriangle,
-  Crown,
+  Building2,
+  Flag,
+  User,
+  Bell,
   BarChart3,
   LogOut,
 } from "lucide-react";
@@ -26,28 +23,30 @@ interface NavItem {
   title: string;
   href: string;
   icon: React.ReactNode;
+  badge?: string;
 }
 
+// Vendor sidebar - EXACT match to wireframe VendorSidebar.tsx
 const vendorNavItems: NavItem[] = [
-  { title: "Dashboard", href: "/vendor", icon: <LayoutDashboard className="h-5 w-5" /> },
-  { title: "My Listings", href: "/vendor/listings", icon: <Package className="h-5 w-5" /> },
-  { title: "Orders", href: "/vendor/orders", icon: <ShoppingBag className="h-5 w-5" /> },
-  { title: "Reviews", href: "/vendor/reviews", icon: <Star className="h-5 w-5" /> },
-  { title: "Performance", href: "/vendor/performance", icon: <TrendingUp className="h-5 w-5" /> },
-  { title: "Service Areas", href: "/vendor/areas", icon: <MapPin className="h-5 w-5" /> },
-  { title: "Availability", href: "/vendor/availability", icon: <Clock className="h-5 w-5" /> },
-  { title: "Subscription", href: "/vendor/subscription", icon: <CreditCard className="h-5 w-5" /> },
+  { title: "Overview", href: "/vendor/dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
+  { title: "My Services", href: "/vendor/services", icon: <Package className="h-5 w-5" /> },
+  { title: "Orders", href: "/vendor/orders", icon: <ShoppingCart className="h-5 w-5" /> },
+  { title: "Subscription", href: "/vendor/subscription-management", icon: <CreditCard className="h-5 w-5" /> },
+  { title: "Profile", href: "/vendor/profile", icon: <User className="h-5 w-5" /> },
   { title: "Settings", href: "/vendor/settings", icon: <Settings className="h-5 w-5" /> },
 ];
 
+// Admin sidebar - EXACT match to wireframe AdminSidebar.tsx
 const adminNavItems: NavItem[] = [
-  { title: "Dashboard", href: "/admin", icon: <LayoutDashboard className="h-5 w-5" /> },
-  { title: "Vendors", href: "/admin/vendors", icon: <Store className="h-5 w-5" /> },
+  { title: "Dashboard", href: "/admin/dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
+  { title: "Michelle's Services", href: "/admin/michelle-profiles", icon: <User className="h-5 w-5" /> },
+  { title: "Vendors", href: "/admin/vendors", icon: <Building2 className="h-5 w-5" /> },
+  { title: "Listings", href: "/admin/listings", icon: <Flag className="h-5 w-5" /> },
+  { title: "Moderation", href: "/admin/moderation", icon: <Flag className="h-5 w-5" />, badge: "3" },
   { title: "Customers", href: "/admin/customers", icon: <Users className="h-5 w-5" /> },
-  { title: "All Listings", href: "/admin/listings", icon: <Package className="h-5 w-5" /> },
-  { title: "Reports", href: "/admin/reports", icon: <AlertTriangle className="h-5 w-5" /> },
-  { title: "Michelle Listings", href: "/admin/michelle", icon: <Crown className="h-5 w-5" /> },
-  { title: "Subscriptions", href: "/admin/subscriptions", icon: <BarChart3 className="h-5 w-5" /> },
+  { title: "Orders", href: "/admin/orders", icon: <Package className="h-5 w-5" /> },
+  { title: "Push Notifications", href: "/admin/push-notifications", icon: <Bell className="h-5 w-5" /> },
+  { title: "Reports", href: "/admin/reports", icon: <BarChart3 className="h-5 w-5" /> },
   { title: "Settings", href: "/admin/settings", icon: <Settings className="h-5 w-5" /> },
 ];
 
@@ -63,7 +62,7 @@ export function Sidebar() {
       <div className="flex h-full flex-col">
         {/* Logo */}
         <div className="flex h-16 items-center border-b border-gray-200 px-6">
-          <Link href={isAdmin ? "/admin" : "/vendor"} className="flex items-center gap-2">
+          <Link href={isAdmin ? "/admin/dashboard" : "/vendor/dashboard"} className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
               <span className="text-white font-bold text-sm">DH</span>
             </div>
@@ -88,7 +87,12 @@ export function Sidebar() {
                     )}
                   >
                     {item.icon}
-                    {item.title}
+                    <span className="flex-1">{item.title}</span>
+                    {item.badge && (
+                      <span className="bg-red-600 text-white text-xs px-1.5 py-0.5 rounded">
+                        {item.badge}
+                      </span>
+                    )}
                   </Link>
                 </li>
               );
@@ -116,7 +120,7 @@ export function Sidebar() {
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
           >
             <LogOut className="h-5 w-5" />
-            Sign Out
+            Logout
           </button>
         </div>
       </div>
