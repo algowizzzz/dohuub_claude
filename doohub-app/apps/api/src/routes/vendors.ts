@@ -108,12 +108,20 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
           })),
         } : undefined,
         availability: availability ? {
-          create: Object.entries(availability).map(([day, data]: [string, any]) => ({
-            dayOfWeek: day.toUpperCase(),
-            isAvailable: data.enabled,
-            startTime: data.start,
-            endTime: data.end,
-          })),
+          create: Object.entries(availability).map(([day, data]: [string, any]) => {
+            // Convert day name or index to integer (0-6)
+            const dayMap: Record<string, number> = {
+              'SUNDAY': 0, 'MONDAY': 1, 'TUESDAY': 2, 'WEDNESDAY': 3,
+              'THURSDAY': 4, 'FRIDAY': 5, 'SATURDAY': 6,
+              '0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6
+            };
+            return {
+              dayOfWeek: dayMap[day.toUpperCase()] ?? (parseInt(day) || 0),
+              isAvailable: data.enabled,
+              startTime: data.start,
+              endTime: data.end,
+            };
+          }),
         } : undefined,
       },
       include: {
@@ -478,30 +486,31 @@ router.get('/all-listings', authenticate, requireRole('ADMIN'), async (req: Auth
     const limitNum = parseInt(limit as string);
 
     // Fetch all listing types with vendor info
+    const statusFilter = status ? { status: status as any } : {};
     const [cleaning, handyman, beauty, rentals, caregiving, groceryStores] = await Promise.all([
       prisma.cleaningListing.findMany({
         include: { vendor: { select: { id: true, businessName: true, isMichelle: true } } },
-        ...(status && { where: { status: status as string } }),
+        where: statusFilter,
       }),
       prisma.handymanListing.findMany({
         include: { vendor: { select: { id: true, businessName: true, isMichelle: true } } },
-        ...(status && { where: { status: status as string } }),
+        where: statusFilter,
       }),
       prisma.beautyListing.findMany({
         include: { vendor: { select: { id: true, businessName: true, isMichelle: true } } },
-        ...(status && { where: { status: status as string } }),
+        where: statusFilter,
       }),
       prisma.rentalListing.findMany({
         include: { vendor: { select: { id: true, businessName: true, isMichelle: true } } },
-        ...(status && { where: { status: status as string } }),
+        where: statusFilter,
       }),
       prisma.caregivingListing.findMany({
         include: { vendor: { select: { id: true, businessName: true, isMichelle: true } } },
-        ...(status && { where: { status: status as string } }),
+        where: statusFilter,
       }),
       prisma.groceryListing.findMany({
         include: { vendor: { select: { id: true, businessName: true, isMichelle: true } } },
-        ...(status && { where: { status: status as string } }),
+        where: statusFilter,
       }),
     ]);
 

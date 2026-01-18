@@ -1,4 +1,5 @@
 import express from 'express';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -19,6 +20,18 @@ import beautyRoutes from './routes/beauty';
 import groceryRoutes from './routes/groceries';
 import rentalRoutes from './routes/rentals';
 import caregivingRoutes from './routes/caregiving';
+// NEW listing routes
+import foodRoutes from './routes/food';
+import beautyProductRoutes from './routes/beauty-products';
+import rideAssistanceRoutes from './routes/ride-assistance';
+import companionshipRoutes from './routes/companionship';
+import storesRoutes from './routes/stores';
+import regionsRoutes from './routes/regions';
+import statsRoutes from './routes/stats';
+import uploadRoutes from './routes/upload';
+import subscriptionRoutes from './routes/subscriptions';
+import adminRoutes from './routes/admin';
+import settingsRoutes from './routes/settings';
 import bookingRoutes from './routes/bookings';
 import orderRoutes from './routes/orders';
 import cartRoutes from './routes/cart';
@@ -62,6 +75,10 @@ app.use(express.urlencoded({ extended: true }));
 // Logging
 app.use(morgan('dev'));
 
+// Static file serving for uploads
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '../uploads');
+app.use('/uploads', express.static(UPLOAD_DIR));
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -78,6 +95,24 @@ app.use('/api/v1/services/beauty', beautyRoutes);
 app.use('/api/v1/services/groceries', groceryRoutes);
 app.use('/api/v1/services/rentals', rentalRoutes);
 app.use('/api/v1/services/caregiving', caregivingRoutes);
+// NEW listing routes
+app.use('/api/v1/services/food', foodRoutes);
+app.use('/api/v1/services/beauty-products', beautyProductRoutes);
+app.use('/api/v1/services/ride-assistance', rideAssistanceRoutes);
+app.use('/api/v1/services/companionship', companionshipRoutes);
+// Store and Region routes
+app.use('/api/v1/stores', storesRoutes);
+app.use('/api/v1/regions', regionsRoutes);
+// Dashboard stats routes
+app.use('/api/v1/stats', statsRoutes);
+// File upload routes
+app.use('/api/v1/upload', uploadRoutes);
+// Subscription routes
+app.use('/api/v1/subscriptions', subscriptionRoutes);
+// Admin routes
+app.use('/api/v1/admin', adminRoutes);
+// Settings routes
+app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/bookings', bookingRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/cart', cartRoutes);
@@ -94,6 +129,11 @@ app.use('/api/v1/beauty', beautyRoutes);
 app.use('/api/v1/groceries', groceryRoutes);
 app.use('/api/v1/rentals', rentalRoutes);
 app.use('/api/v1/caregiving', caregivingRoutes);
+// NEW routes - direct access
+app.use('/api/v1/food', foodRoutes);
+app.use('/api/v1/beauty-products', beautyProductRoutes);
+app.use('/api/v1/ride-assistance', rideAssistanceRoutes);
+app.use('/api/v1/companionship', companionshipRoutes);
 
 // 404 handler
 app.use((req, res) => {

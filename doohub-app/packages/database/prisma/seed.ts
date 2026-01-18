@@ -48,6 +48,51 @@ async function main() {
   console.log('✅ Admin accounts created');
 
   // ============================================
+  // 1.5 REGIONS (US + Canada Cities) - NEW
+  // ============================================
+
+  const regionData = [
+    // United States
+    { name: 'New York, NY', city: 'New York', state: 'NY', country: 'USA', countryCode: 'US' },
+    { name: 'Los Angeles, CA', city: 'Los Angeles', state: 'CA', country: 'USA', countryCode: 'US' },
+    { name: 'Chicago, IL', city: 'Chicago', state: 'IL', country: 'USA', countryCode: 'US' },
+    { name: 'Brooklyn, NY', city: 'Brooklyn', state: 'NY', country: 'USA', countryCode: 'US' },
+    { name: 'San Francisco, CA', city: 'San Francisco', state: 'CA', country: 'USA', countryCode: 'US' },
+    { name: 'Queens, NY', city: 'Queens', state: 'NY', country: 'USA', countryCode: 'US' },
+    { name: 'Santa Monica, CA', city: 'Santa Monica', state: 'CA', country: 'USA', countryCode: 'US' },
+    { name: 'Jersey City, NJ', city: 'Jersey City', state: 'NJ', country: 'USA', countryCode: 'US' },
+    { name: 'Manhattan, NY', city: 'Manhattan', state: 'NY', country: 'USA', countryCode: 'US' },
+    { name: 'Bronx, NY', city: 'Bronx', state: 'NY', country: 'USA', countryCode: 'US' },
+    // Canada
+    { name: 'Toronto, ON', city: 'Toronto', province: 'ON', country: 'Canada', countryCode: 'CA' },
+    { name: 'Vancouver, BC', city: 'Vancouver', province: 'BC', country: 'Canada', countryCode: 'CA' },
+    { name: 'Montreal, QC', city: 'Montreal', province: 'QC', country: 'Canada', countryCode: 'CA' },
+    { name: 'Calgary, AB', city: 'Calgary', province: 'AB', country: 'Canada', countryCode: 'CA' },
+    { name: 'Ottawa, ON', city: 'Ottawa', province: 'ON', country: 'Canada', countryCode: 'CA' },
+    { name: 'Edmonton, AB', city: 'Edmonton', province: 'AB', country: 'Canada', countryCode: 'CA' },
+    { name: 'Mississauga, ON', city: 'Mississauga', province: 'ON', country: 'Canada', countryCode: 'CA' },
+    { name: 'Winnipeg, MB', city: 'Winnipeg', province: 'MB', country: 'Canada', countryCode: 'CA' },
+  ];
+
+  for (const region of regionData) {
+    await prisma.region.upsert({
+      where: { name_country: { name: region.name, country: region.country } },
+      update: {},
+      create: {
+        name: region.name,
+        city: region.city,
+        state: region.state || null,
+        province: (region as any).province || null,
+        country: region.country,
+        countryCode: region.countryCode,
+        isActive: true,
+      },
+    });
+  }
+
+  console.log('✅ Regions created (10 US + 8 Canada)');
+
+  // ============================================
   // 2. MICHELLE'S VENDOR (Platform Owner)
   // ============================================
   
@@ -69,7 +114,8 @@ async function main() {
           { category: ServiceCategory.BEAUTY },
           { category: ServiceCategory.GROCERIES },
           { category: ServiceCategory.RENTALS },
-          { category: ServiceCategory.CAREGIVING },
+          { category: ServiceCategory.RIDE_ASSISTANCE },
+          { category: ServiceCategory.COMPANIONSHIP },
         ],
       },
       serviceAreas: {
@@ -171,7 +217,7 @@ async function main() {
       lastName: 'Care',
       rating: 4.8,
       reviewCount: 145,
-      categories: [ServiceCategory.CAREGIVING],
+      categories: [ServiceCategory.RIDE_ASSISTANCE, ServiceCategory.COMPANIONSHIP],
     },
     {
       email: 'nyrentals@example.com',
@@ -1262,14 +1308,14 @@ async function main() {
     },
   });
 
-  // BK005 - Completed Caregiving (DemoCustomer2)
+  // BK005 - Completed Ride Assistance (DemoCustomer2)
   const booking5 = await prisma.booking.create({
     data: {
       userId: demoCustomer2.id,
       vendorId: michelleVendor.id,
       addressId: demoCustomer2HomeAddress.id,
-      category: ServiceCategory.CAREGIVING,
-      caregivingListingId: caregivingListings[0].id,
+      category: ServiceCategory.RIDE_ASSISTANCE,
+      caregivingListingId: caregivingListings[0].id, // Legacy reference
       scheduledDate: new Date('2026-01-02'),
       scheduledTime: '08:30',
       pickupLocation: '150 Park Lane, Brooklyn',
@@ -1282,14 +1328,14 @@ async function main() {
     },
   });
 
-  // BK006 - Completed Caregiving
+  // BK006 - Completed Companionship
   const booking6 = await prisma.booking.create({
     data: {
       userId: demoCustomer.id,
       vendorId: comfortCare.id,
       addressId: demoCustomerHomeAddress.id,
-      category: ServiceCategory.CAREGIVING,
-      caregivingListingId: caregivingListings[3].id,
+      category: ServiceCategory.COMPANIONSHIP,
+      caregivingListingId: caregivingListings[3].id, // Legacy reference
       scheduledDate: new Date('2026-01-05'),
       scheduledTime: '13:00',
       duration: 120,
@@ -1391,14 +1437,14 @@ async function main() {
     },
   });
 
-  // BK012 - Pending Caregiving
+  // BK012 - Pending Ride Assistance
   const booking12 = await prisma.booking.create({
     data: {
       userId: demoCustomer.id,
       vendorId: comfortCare.id,
       addressId: demoCustomerHomeAddress.id,
-      category: ServiceCategory.CAREGIVING,
-      caregivingListingId: caregivingListings[2].id,
+      category: ServiceCategory.RIDE_ASSISTANCE,
+      caregivingListingId: caregivingListings[2].id, // Legacy reference
       scheduledDate: new Date('2026-01-18'),
       scheduledTime: '09:30',
       pickupLocation: '100 Demo Street, NY',
@@ -1494,7 +1540,7 @@ async function main() {
       deliveryFee: 5,
       serviceFee: 2.85,
       total: 45.85,
-      status: OrderStatus.DELIVERED,
+      status: OrderStatus.COMPLETED,
       deliveredAt: new Date('2025-12-18T14:30:00'),
       items: {
         create: [
@@ -1517,7 +1563,7 @@ async function main() {
       deliveryFee: 5,
       serviceFee: 2.75,
       total: 52.75,
-      status: OrderStatus.DELIVERED,
+      status: OrderStatus.COMPLETED,
       deliveredAt: new Date('2025-12-25T12:00:00'),
       items: {
         create: [
@@ -1537,7 +1583,7 @@ async function main() {
       deliveryFee: 5,
       serviceFee: 2.70,
       total: 34.70,
-      status: OrderStatus.DELIVERED,
+      status: OrderStatus.COMPLETED,
       deliveredAt: new Date('2026-01-03T15:45:00'),
       items: {
         create: [
@@ -1560,7 +1606,7 @@ async function main() {
       deliveryFee: 5,
       serviceFee: 3.50,
       total: 43.50,
-      status: OrderStatus.DELIVERED,
+      status: OrderStatus.COMPLETED,
       deliveredAt: new Date('2026-01-08T11:20:00'),
       items: {
         create: [
@@ -1605,7 +1651,7 @@ async function main() {
       deliveryFee: 5,
       serviceFee: 4.70,
       total: 62.70,
-      status: OrderStatus.PREPARING,
+      status: OrderStatus.IN_PROGRESS,
       estimatedDelivery: new Date('2026-01-11T16:00:00'),
       items: {
         create: [
@@ -1626,7 +1672,7 @@ async function main() {
       deliveryFee: 5,
       serviceFee: 3.25,
       total: 38.25,
-      status: OrderStatus.CONFIRMED,
+      status: OrderStatus.ACCEPTED,
       estimatedDelivery: new Date('2026-01-12T11:00:00'),
       items: {
         create: [
@@ -2029,6 +2075,7 @@ async function main() {
   
   console.log('\n🎉 Comprehensive seed completed successfully!\n');
   console.log('📊 Summary:');
+  console.log('  - Regions: 18 (10 US + 8 Canada)');
   console.log('  - Admin accounts: 2');
   console.log('  - Vendor accounts: 8 (including DoHuub Official)');
   console.log('  - Customer accounts: 6');

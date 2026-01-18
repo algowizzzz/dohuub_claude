@@ -6,13 +6,13 @@ const router = Router();
 
 type UiReportStatus = 'PENDING' | 'REVIEWED' | 'IN_REVIEW' | 'RESOLVED' | 'DISMISSED';
 
-function dbStatusFromUiStatus(status: unknown): 'PENDING' | 'REVIEWED' | 'APPROVED' | 'REMOVED' | undefined {
+function dbStatusFromUiStatus(status: unknown): 'PENDING' | 'REVIEWED' | 'RESOLVED' | 'DISMISSED' | undefined {
   if (!status || typeof status !== 'string') return undefined;
   const s = status.toUpperCase();
   if (s === 'PENDING') return 'PENDING';
   if (s === 'REVIEWED' || s === 'IN_REVIEW') return 'REVIEWED';
-  if (s === 'RESOLVED') return 'REMOVED';
-  if (s === 'DISMISSED') return 'APPROVED';
+  if (s === 'RESOLVED') return 'RESOLVED';
+  if (s === 'DISMISSED') return 'DISMISSED';
   return undefined;
 }
 
@@ -22,10 +22,10 @@ function uiStatusFromDbStatus(status: string): UiReportStatus {
       return 'PENDING';
     case 'REVIEWED':
       return 'REVIEWED';
-    case 'APPROVED':
-      return 'DISMISSED';
-    case 'REMOVED':
+    case 'RESOLVED':
       return 'RESOLVED';
+    case 'DISMISSED':
+      return 'DISMISSED';
     default:
       return 'REVIEWED';
   }
@@ -235,7 +235,7 @@ router.put('/:id', authenticate, requireRole('ADMIN'), async (req: AuthRequest, 
       data: {
         status: dbStatus,
         resolution,
-        reviewedAt: dbStatus === 'REMOVED' || dbStatus === 'APPROVED' ? new Date() : undefined,
+        reviewedAt: dbStatus === 'RESOLVED' || dbStatus === 'DISMISSED' ? new Date() : undefined,
         reviewedBy: req.user!.id,
       },
       include: {

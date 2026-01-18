@@ -107,7 +107,7 @@ router.post('/confirm', authenticate, async (req: AuthRequest, res) => {
       // Update order status
       await prisma.order.update({
         where: { id: orderId },
-        data: { status: 'CONFIRMED' },
+        data: { status: 'ACCEPTED' },
       });
 
       // Create transaction record

@@ -72,6 +72,9 @@ export const requireRole = (...roles: ('CUSTOMER' | 'VENDOR' | 'ADMIN')[]) => {
   };
 };
 
+// Convenience middleware for admin-only routes
+export const requireAdmin = requireRole('ADMIN');
+
 export const optionalAuth = async (
   req: AuthRequest,
   res: Response,

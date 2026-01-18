@@ -25,7 +25,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
         vendor: true,
         address: true,
         items: {
-          include: { listing: true },
+          include: { groceryListing: true, foodListing: true, beautyProductListing: true },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -62,7 +62,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res) => {
         vendor: true,
         address: true,
         items: {
-          include: { listing: true },
+          include: { groceryListing: true, foodListing: true, beautyProductListing: true },
         },
         transaction: true,
       },
@@ -142,7 +142,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         vendor: true,
         address: true,
         items: {
-          include: { listing: true },
+          include: { groceryListing: true, foodListing: true, beautyProductListing: true },
         },
       },
     });
@@ -174,7 +174,7 @@ router.post('/:id/cancel', authenticate, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    if (!['PENDING', 'CONFIRMED'].includes(order.status)) {
+    if (!['PENDING', 'ACCEPTED'].includes(order.status)) {
       return res.status(400).json({ error: 'Order cannot be cancelled' });
     }
 
