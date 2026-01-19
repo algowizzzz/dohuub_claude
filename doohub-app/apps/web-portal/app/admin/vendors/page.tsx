@@ -134,7 +134,7 @@ export default function VendorsPage() {
 
     setIsUpdating(vendorId);
     try {
-      await api.put(`/vendors/${vendorId}/suspend`);
+      await api.patch(`/admin/vendors/${vendorId}/status`, { status: 'SUSPENDED' });
       toast({
         title: "Success",
         description: "Vendor suspended successfully",
@@ -152,20 +152,20 @@ export default function VendorsPage() {
   };
 
   const handleUnsuspend = async (vendorId: string) => {
-    if (!confirm("Are you sure you want to unsuspend this vendor?")) return;
+    if (!confirm("Are you sure you want to activate this vendor?")) return;
 
     setIsUpdating(vendorId);
     try {
-      await api.put(`/vendors/${vendorId}/unsuspend`);
+      await api.patch(`/admin/vendors/${vendorId}/status`, { status: 'APPROVED' });
       toast({
         title: "Success",
-        description: "Vendor unsuspended successfully",
+        description: "Vendor activated successfully",
       });
       fetchVendors();
     } catch (err: any) {
       toast({
         title: "Error",
-        description: err.response?.data?.error || "Failed to unsuspend vendor",
+        description: err.response?.data?.error || "Failed to activate vendor",
         variant: "destructive",
       });
     } finally {

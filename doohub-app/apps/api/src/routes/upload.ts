@@ -1,40 +1,13 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
+import { supabase, STORAGE_BUCKETS, getPublicUrl } from '../utils/supabase';
 
 const router = Router();
 
-// Configure upload directory
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads');
-
-// Ensure upload directory exists
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
-
-// Configure multer storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    // Create subdirectories based on type
-    const type = (req.query.type as string) || 'general';
-    const subDir = path.join(UPLOAD_DIR, type);
-
-    if (!fs.existsSync(subDir)) {
-      fs.mkdirSync(subDir, { recursive: true });
-    }
-
-    cb(null, subDir);
-  },
-  filename: (req, file, cb) => {
-    // Generate unique filename with original extension
-    const ext = path.extname(file.originalname).toLowerCase();
-    const filename = `${uuidv4()}${ext}`;
-    cb(null, filename);
-  },
-});
+// Configure multer for memory storage (files stored in buffer for Supabase upload)
+const storage = multer.memoryStorage();
 
 // File filter for images
 const imageFilter = (req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
@@ -57,27 +30,62 @@ const upload = multer({
   },
 });
 
-// Upload single image
+// Helper to determine bucket based on type
+const getBucket = (type: string): string => {
+  if (type === 'listing' || type === 'listings' || type === 'service') {
+    return STORAGE_BUCKETS.LISTINGS;
+  }
+  return STORAGE_BUCKETS.UPLOADS;
+};
+
+// Helper to get file extension
+const getExtension = (filename: string): string => {
+  const parts = filename.split('.');
+  return parts.length > 1 ? `.${parts.pop()?.toLowerCase()}` : '';
+};
+
+// Upload single image to Supabase Storage
 router.post('/image', authenticate, upload.single('image'), async (req: AuthRequest, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No image file provided' });
     }
 
-    const type = (req.query.type as string) || 'general';
-    const baseUrl = process.env.API_URL || `http://localhost:${process.env.API_PORT || 3001}`;
+    if (!supabase) {
+      return res.status(500).json({ error: 'Storage not configured. Please set Supabase credentials.' });
+    }
 
-    const fileUrl = `${baseUrl}/uploads/${type}/${req.file.filename}`;
+    const type = (req.query.type as string) || 'general';
+    const bucket = getBucket(type);
+    const ext = getExtension(req.file.originalname);
+    const filename = `${type}/${uuidv4()}${ext}`;
+
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .upload(filename, req.file.buffer, {
+        contentType: req.file.mimetype,
+        upsert: false,
+      });
+
+    if (error) {
+      console.error('Supabase upload error:', error);
+      return res.status(500).json({ error: 'Failed to upload to storage', details: error.message });
+    }
+
+    // Get public URL
+    const publicUrl = getPublicUrl(bucket, filename);
 
     res.json({
       success: true,
       data: {
-        id: req.file.filename.replace(/\.[^/.]+$/, ''), // UUID without extension
-        filename: req.file.filename,
+        id: data.path,
+        filename: filename,
         originalName: req.file.originalname,
         mimetype: req.file.mimetype,
         size: req.file.size,
-        url: fileUrl,
+        url: publicUrl,
+        bucket,
         type,
       },
     });
@@ -87,7 +95,7 @@ router.post('/image', authenticate, upload.single('image'), async (req: AuthRequ
   }
 });
 
-// Upload multiple images
+// Upload multiple images to Supabase Storage
 router.post('/images', authenticate, upload.array('images', 10), async (req: AuthRequest, res) => {
   try {
     const files = req.files as Express.Multer.File[];
@@ -96,18 +104,41 @@ router.post('/images', authenticate, upload.array('images', 10), async (req: Aut
       return res.status(400).json({ error: 'No image files provided' });
     }
 
-    const type = (req.query.type as string) || 'general';
-    const baseUrl = process.env.API_URL || `http://localhost:${process.env.API_PORT || 3001}`;
+    if (!supabase) {
+      return res.status(500).json({ error: 'Storage not configured. Please set Supabase credentials.' });
+    }
 
-    const uploadedFiles = files.map((file) => ({
-      id: file.filename.replace(/\.[^/.]+$/, ''),
-      filename: file.filename,
-      originalName: file.originalname,
-      mimetype: file.mimetype,
-      size: file.size,
-      url: `${baseUrl}/uploads/${type}/${file.filename}`,
-      type,
-    }));
+    const type = (req.query.type as string) || 'general';
+    const bucket = getBucket(type);
+
+    const uploadPromises = files.map(async (file) => {
+      const ext = getExtension(file.originalname);
+      const filename = `${type}/${uuidv4()}${ext}`;
+
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .upload(filename, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false,
+        });
+
+      if (error) {
+        throw new Error(`Failed to upload ${file.originalname}: ${error.message}`);
+      }
+
+      return {
+        id: data.path,
+        filename: filename,
+        originalName: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        url: getPublicUrl(bucket, filename),
+        bucket,
+        type,
+      };
+    });
+
+    const uploadedFiles = await Promise.all(uploadPromises);
 
     res.json({
       success: true,
@@ -120,80 +151,54 @@ router.post('/images', authenticate, upload.array('images', 10), async (req: Aut
   }
 });
 
-// Delete file by ID or filename
+// Delete file from Supabase Storage
 router.delete('/:fileId', authenticate, async (req: AuthRequest, res) => {
   try {
     const { fileId } = req.params;
-    const { type = 'general' } = req.query;
+    const { bucket = STORAGE_BUCKETS.UPLOADS } = req.query;
 
-    // Search for file with any extension
-    const subDir = path.join(UPLOAD_DIR, type as string);
-
-    if (!fs.existsSync(subDir)) {
-      return res.status(404).json({ error: 'File not found' });
+    if (!supabase) {
+      return res.status(500).json({ error: 'Storage not configured' });
     }
 
-    const files = fs.readdirSync(subDir);
-    const matchingFile = files.find(
-      (f) => f === fileId || f.startsWith(`${fileId}.`)
-    );
+    const { error } = await supabase.storage
+      .from(bucket as string)
+      .remove([fileId]);
 
-    if (!matchingFile) {
-      return res.status(404).json({ error: 'File not found' });
+    if (error) {
+      console.error('Supabase delete error:', error);
+      return res.status(500).json({ error: 'Failed to delete file', details: error.message });
     }
 
-    const filePath = path.join(subDir, matchingFile);
-
-    // Verify the file exists and delete it
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-      res.json({ success: true, message: 'File deleted successfully' });
-    } else {
-      res.status(404).json({ error: 'File not found' });
-    }
-  } catch (error) {
+    res.json({ success: true, message: 'File deleted successfully' });
+  } catch (error: any) {
     console.error('Delete file error:', error);
     res.status(500).json({ error: 'Failed to delete file' });
   }
 });
 
-// Get file info
+// Get file info from Supabase Storage
 router.get('/:fileId', async (req, res) => {
   try {
     const { fileId } = req.params;
-    const { type = 'general' } = req.query;
+    const { bucket = STORAGE_BUCKETS.UPLOADS } = req.query;
 
-    const subDir = path.join(UPLOAD_DIR, type as string);
-
-    if (!fs.existsSync(subDir)) {
-      return res.status(404).json({ error: 'File not found' });
+    if (!supabase) {
+      return res.status(500).json({ error: 'Storage not configured' });
     }
 
-    const files = fs.readdirSync(subDir);
-    const matchingFile = files.find(
-      (f) => f === fileId || f.startsWith(`${fileId}.`)
-    );
-
-    if (!matchingFile) {
-      return res.status(404).json({ error: 'File not found' });
-    }
-
-    const filePath = path.join(subDir, matchingFile);
-    const stats = fs.statSync(filePath);
-    const baseUrl = process.env.API_URL || `http://localhost:${process.env.API_PORT || 3001}`;
+    // For Supabase, we just return the public URL
+    const publicUrl = getPublicUrl(bucket as string, fileId);
 
     res.json({
       success: true,
       data: {
         id: fileId,
-        filename: matchingFile,
-        size: stats.size,
-        url: `${baseUrl}/uploads/${type}/${matchingFile}`,
-        createdAt: stats.birthtime,
-        type,
+        url: publicUrl,
+        bucket,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get file info error:', error);
     res.status(500).json({ error: 'Failed to get file info' });
   }

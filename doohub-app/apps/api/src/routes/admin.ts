@@ -1296,4 +1296,497 @@ router.get('/reports/platform/export', authenticate, requireAdmin, async (req: A
   }
 });
 
+// ========================================
+// ORDERS MANAGEMENT
+// ========================================
+
+// Get all orders
+router.get('/orders', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { status, vendorId, userId, page = '1', limit = '20', search } = req.query;
+
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    const where: any = {};
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (vendorId) {
+      where.vendorId = vendorId;
+    }
+
+    if (userId) {
+      where.userId = userId;
+    }
+
+    if (search) {
+      where.OR = [
+        { id: { contains: search as string, mode: 'insensitive' } },
+        { user: { email: { contains: search as string, mode: 'insensitive' } } },
+        { vendor: { businessName: { contains: search as string, mode: 'insensitive' } } },
+      ];
+    }
+
+    const orders = await prisma.order.findMany({
+      where,
+      include: {
+        user: { select: { id: true, email: true, profile: true } },
+        vendor: { select: { id: true, businessName: true } },
+        address: true,
+        items: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limitNum,
+    });
+
+    const total = await prisma.order.count({ where });
+
+    res.json({
+      success: true,
+      data: orders,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    });
+  } catch (error) {
+    console.error('Get orders error:', error);
+    res.status(500).json({ error: 'Failed to get orders' });
+  }
+});
+
+// Get order by ID
+router.get('/orders/:id', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: {
+        user: { select: { id: true, email: true, phone: true, profile: true } },
+        vendor: { select: { id: true, businessName: true, contactPhone: true } },
+        address: true,
+        items: {
+          include: {
+            groceryListing: true,
+            foodListing: true,
+            beautyProductListing: true,
+          },
+        },
+        transaction: true,
+      },
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    res.json({ success: true, data: order });
+  } catch (error) {
+    console.error('Get order error:', error);
+    res.status(500).json({ error: 'Failed to get order' });
+  }
+});
+
+// Update order status
+router.patch('/orders/:id/status', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const validStatuses = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'COMPLETED', 'CANCELLED'];
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Valid status is required' });
+    }
+
+    const order = await prisma.order.update({
+      where: { id },
+      data: {
+        status,
+        ...(status === 'COMPLETED' && { deliveredAt: new Date() }),
+        ...(status === 'CANCELLED' && { cancelledAt: new Date() }),
+      },
+      include: {
+        user: { select: { id: true, email: true, profile: true } },
+        vendor: { select: { id: true, businessName: true } },
+      },
+    });
+
+    res.json({ success: true, data: order });
+  } catch (error) {
+    console.error('Update order status error:', error);
+    res.status(500).json({ error: 'Failed to update order status' });
+  }
+});
+
+// ========================================
+// BOOKINGS MANAGEMENT
+// ========================================
+
+// Get all bookings
+router.get('/bookings', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { status, vendorId, userId, category, page = '1', limit = '20', search } = req.query;
+
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    const where: any = {};
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (vendorId) {
+      where.vendorId = vendorId;
+    }
+
+    if (userId) {
+      where.userId = userId;
+    }
+
+    if (category) {
+      where.category = category;
+    }
+
+    if (search) {
+      where.OR = [
+        { id: { contains: search as string, mode: 'insensitive' } },
+        { user: { email: { contains: search as string, mode: 'insensitive' } } },
+        { vendor: { businessName: { contains: search as string, mode: 'insensitive' } } },
+      ];
+    }
+
+    const bookings = await prisma.booking.findMany({
+      where,
+      include: {
+        user: { select: { id: true, email: true, profile: true } },
+        vendor: { select: { id: true, businessName: true } },
+        address: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limitNum,
+    });
+
+    const total = await prisma.booking.count({ where });
+
+    res.json({
+      success: true,
+      data: bookings,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    });
+  } catch (error) {
+    console.error('Get bookings error:', error);
+    res.status(500).json({ error: 'Failed to get bookings' });
+  }
+});
+
+// Get booking by ID
+router.get('/bookings/:id', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    const booking = await prisma.booking.findUnique({
+      where: { id },
+      include: {
+        user: { select: { id: true, email: true, phone: true, profile: true } },
+        vendor: { select: { id: true, businessName: true, contactPhone: true } },
+        address: true,
+        cleaningListing: true,
+        handymanListing: true,
+        beautyListing: true,
+        rentalListing: true,
+        caregivingListing: true,
+        rideAssistanceListing: true,
+        companionshipListing: true,
+        transaction: true,
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    res.json({ success: true, data: booking });
+  } catch (error) {
+    console.error('Get booking error:', error);
+    res.status(500).json({ error: 'Failed to get booking' });
+  }
+});
+
+// Update booking status
+router.patch('/bookings/:id/status', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const validStatuses = ['PENDING', 'ACCEPTED', 'DECLINED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW'];
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Valid status is required' });
+    }
+
+    const booking = await prisma.booking.update({
+      where: { id },
+      data: {
+        status,
+        ...(status === 'COMPLETED' && { completedAt: new Date() }),
+        ...(status === 'CANCELLED' && { cancelledAt: new Date() }),
+      },
+      include: {
+        user: { select: { id: true, email: true, profile: true } },
+        vendor: { select: { id: true, businessName: true } },
+      },
+    });
+
+    res.json({ success: true, data: booking });
+  } catch (error) {
+    console.error('Update booking status error:', error);
+    res.status(500).json({ error: 'Failed to update booking status' });
+  }
+});
+
+// ========================================
+// REGIONS MANAGEMENT
+// ========================================
+
+// Get all regions
+router.get('/regions', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { country, isActive, page = '1', limit = '50' } = req.query;
+
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    const where: any = {};
+
+    if (country) {
+      where.country = country;
+    }
+
+    if (isActive !== undefined) {
+      where.isActive = isActive === 'true';
+    }
+
+    const regions = await prisma.region.findMany({
+      where,
+      include: {
+        _count: {
+          select: {
+            storeRegions: true,
+          },
+        },
+      },
+      orderBy: [{ country: 'asc' }, { name: 'asc' }],
+      skip,
+      take: limitNum,
+    });
+
+    const total = await prisma.region.count({ where });
+
+    res.json({
+      success: true,
+      data: regions,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    });
+  } catch (error) {
+    console.error('Get regions error:', error);
+    res.status(500).json({ error: 'Failed to get regions' });
+  }
+});
+
+// Create region
+router.post('/regions', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { name, country, code, isActive = true } = req.body;
+
+    if (!name || !country) {
+      return res.status(400).json({ error: 'name and country are required' });
+    }
+
+    const region = await prisma.region.create({
+      data: {
+        name,
+        country,
+        code: code || name.substring(0, 3).toUpperCase(),
+        isActive,
+      },
+    });
+
+    res.status(201).json({ success: true, data: region });
+  } catch (error) {
+    console.error('Create region error:', error);
+    res.status(500).json({ error: 'Failed to create region' });
+  }
+});
+
+// Update region
+router.put('/regions/:id', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { name, country, code, isActive } = req.body;
+
+    const region = await prisma.region.update({
+      where: { id },
+      data: {
+        ...(name && { name }),
+        ...(country && { country }),
+        ...(code && { code }),
+        ...(isActive !== undefined && { isActive }),
+      },
+    });
+
+    res.json({ success: true, data: region });
+  } catch (error) {
+    console.error('Update region error:', error);
+    res.status(500).json({ error: 'Failed to update region' });
+  }
+});
+
+// Delete region
+router.delete('/regions/:id', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if region is in use
+    const inUse = await prisma.storeRegion.count({ where: { regionId: id } });
+    if (inUse > 0) {
+      return res.status(400).json({ error: 'Cannot delete region that is in use by stores' });
+    }
+
+    await prisma.region.delete({ where: { id } });
+
+    res.json({ success: true, message: 'Region deleted' });
+  } catch (error) {
+    console.error('Delete region error:', error);
+    res.status(500).json({ error: 'Failed to delete region' });
+  }
+});
+
+// ========================================
+// PLATFORM SETTINGS
+// ========================================
+
+// Get platform settings
+router.get('/settings', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    let settings = await prisma.platformSettings.findFirst();
+
+    // Create default settings if none exist
+    if (!settings) {
+      settings = await prisma.platformSettings.create({
+        data: {
+          platformName: 'DoHuub',
+          platformFeePercentage: 10,
+          deliveryFeeDefault: 5.99,
+          serviceFeePercentage: 5,
+          minOrderAmount: 10,
+          maxDeliveryRadius: 25,
+          supportEmail: 'support@doohub.com',
+          supportPhone: '+1-800-DOOHUB',
+          termsUrl: 'https://doohub.com/terms',
+          privacyUrl: 'https://doohub.com/privacy',
+          maintenanceMode: false,
+          features: {
+            bookings: true,
+            orders: true,
+            subscriptions: true,
+            reviews: true,
+            chat: true,
+            notifications: true,
+          },
+        },
+      });
+    }
+
+    res.json({ success: true, data: settings });
+  } catch (error) {
+    console.error('Get settings error:', error);
+    res.status(500).json({ error: 'Failed to get settings' });
+  }
+});
+
+// Update platform settings
+router.put('/settings', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const {
+      platformName,
+      platformFeePercentage,
+      deliveryFeeDefault,
+      serviceFeePercentage,
+      minOrderAmount,
+      maxDeliveryRadius,
+      supportEmail,
+      supportPhone,
+      termsUrl,
+      privacyUrl,
+      maintenanceMode,
+      features,
+    } = req.body;
+
+    let settings = await prisma.platformSettings.findFirst();
+
+    if (!settings) {
+      settings = await prisma.platformSettings.create({
+        data: {
+          platformName: platformName || 'DoHuub',
+          platformFeePercentage: platformFeePercentage ?? 10,
+          deliveryFeeDefault: deliveryFeeDefault ?? 5.99,
+          serviceFeePercentage: serviceFeePercentage ?? 5,
+          minOrderAmount: minOrderAmount ?? 10,
+          maxDeliveryRadius: maxDeliveryRadius ?? 25,
+          supportEmail: supportEmail || 'support@doohub.com',
+          supportPhone: supportPhone || '+1-800-DOOHUB',
+          termsUrl: termsUrl || 'https://doohub.com/terms',
+          privacyUrl: privacyUrl || 'https://doohub.com/privacy',
+          maintenanceMode: maintenanceMode ?? false,
+          features: features || {},
+        },
+      });
+    } else {
+      settings = await prisma.platformSettings.update({
+        where: { id: settings.id },
+        data: {
+          ...(platformName !== undefined && { platformName }),
+          ...(platformFeePercentage !== undefined && { platformFeePercentage }),
+          ...(deliveryFeeDefault !== undefined && { deliveryFeeDefault }),
+          ...(serviceFeePercentage !== undefined && { serviceFeePercentage }),
+          ...(minOrderAmount !== undefined && { minOrderAmount }),
+          ...(maxDeliveryRadius !== undefined && { maxDeliveryRadius }),
+          ...(supportEmail !== undefined && { supportEmail }),
+          ...(supportPhone !== undefined && { supportPhone }),
+          ...(termsUrl !== undefined && { termsUrl }),
+          ...(privacyUrl !== undefined && { privacyUrl }),
+          ...(maintenanceMode !== undefined && { maintenanceMode }),
+          ...(features !== undefined && { features }),
+        },
+      });
+    }
+
+    res.json({ success: true, data: settings });
+  } catch (error) {
+    console.error('Update settings error:', error);
+    res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
 export default router;

@@ -1036,3 +1036,25 @@ model ChatMessage {
   @@index([conversationId])
 }
 
+// ============================================
+// PLATFORM SETTINGS
+// ============================================
+
+model PlatformSettings {
+  id                    String   @id @default(cuid())
+  platformName          String   @default("DoHuub")
+  platformFeePercentage Float    @default(10)
+  deliveryFeeDefault    Float    @default(5.99)
+  serviceFeePercentage  Float    @default(5)
+  minOrderAmount        Float    @default(10)
+  maxDeliveryRadius     Float    @default(25)
+  supportEmail          String   @default("support@doohub.com")
+  supportPhone          String   @default("+1-800-DOOHUB")
+  termsUrl              String   @default("https://doohub.com/terms")
+  privacyUrl            String   @default("https://doohub.com/privacy")
+  maintenanceMode       Boolean  @default(false)
+  features              Json     @default("{}")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
