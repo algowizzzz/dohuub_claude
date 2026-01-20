@@ -57,6 +57,7 @@ app.use(cors({
     'exp://localhost:8081',
     // Production URLs
     'https://dohuubclaude-production.up.railway.app',
+    'https://dohuub-claude.vercel.app',
     process.env.FRONTEND_URL,
   ].filter(Boolean) as string[],
   credentials: true,
