@@ -115,7 +115,7 @@ router.post('/images', authenticate, upload.array('images', 10), async (req: Aut
       const ext = getExtension(file.originalname);
       const filename = `${type}/${uuidv4()}${ext}`;
 
-      const { data, error } = await supabase.storage
+      const { data, error } = await supabase!.storage
         .from(bucket)
         .upload(filename, file.buffer, {
           contentType: file.mimetype,

@@ -1617,17 +1617,20 @@ router.get('/regions', authenticate, requireAdmin, async (req: AuthRequest, res)
 // Create region
 router.post('/regions', authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const { name, country, code, isActive = true } = req.body;
+    const { name, city, state, province, country, countryCode, isActive = true } = req.body;
 
-    if (!name || !country) {
-      return res.status(400).json({ error: 'name and country are required' });
+    if (!name || !city || !country) {
+      return res.status(400).json({ error: 'name, city, and country are required' });
     }
 
     const region = await prisma.region.create({
       data: {
         name,
+        city,
+        state: state || null,
+        province: province || null,
         country,
-        code: code || name.substring(0, 3).toUpperCase(),
+        countryCode: countryCode || (country === 'Canada' ? 'CA' : 'US'),
         isActive,
       },
     });
@@ -1643,14 +1646,17 @@ router.post('/regions', authenticate, requireAdmin, async (req: AuthRequest, res
 router.put('/regions/:id', authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const { name, country, code, isActive } = req.body;
+    const { name, city, state, province, country, countryCode, isActive } = req.body;
 
     const region = await prisma.region.update({
       where: { id },
       data: {
         ...(name && { name }),
+        ...(city && { city }),
+        ...(state !== undefined && { state }),
+        ...(province !== undefined && { province }),
         ...(country && { country }),
-        ...(code && { code }),
+        ...(countryCode && { countryCode }),
         ...(isActive !== undefined && { isActive }),
       },
     });
@@ -1668,7 +1674,7 @@ router.delete('/regions/:id', authenticate, requireAdmin, async (req: AuthReques
     const { id } = req.params;
 
     // Check if region is in use
-    const inUse = await prisma.storeRegion.count({ where: { regionId: id } });
+    const inUse = await prisma.vendorStoreRegion.count({ where: { regionId: id } });
     if (inUse > 0) {
       return res.status(400).json({ error: 'Cannot delete region that is in use by stores' });
     }

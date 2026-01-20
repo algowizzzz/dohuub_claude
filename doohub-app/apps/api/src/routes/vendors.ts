@@ -183,7 +183,7 @@ router.get('/admin/summary', authenticate, requireRole('ADMIN'), async (req: Aut
       orderBy: { createdAt: 'desc' },
     });
 
-    const vendorIds = vendors.map((v) => v.id);
+    const vendorIds = vendors.map((v: { id: string }) => v.id);
     const [listingCounts, revenues] = await Promise.all([
       getListingCountsByVendorId(vendorIds),
       getRevenueByVendorId(vendorIds),
@@ -191,7 +191,7 @@ router.get('/admin/summary', authenticate, requireRole('ADMIN'), async (req: Aut
 
     res.json({
       success: true,
-      data: vendors.map((v) => ({
+      data: vendors.map((v: any) => ({
         id: v.id,
         businessName: v.businessName,
         email: v.user.email,
@@ -291,7 +291,7 @@ router.get('/me/analytics', authenticate, async (req: AuthRequest, res) => {
       select: { rating: true },
     });
     const reviewCount = reviews.length;
-    const averageRating = reviewCount ? reviews.reduce((s, r) => s + r.rating, 0) / reviewCount : vendor.rating || 0;
+    const averageRating = reviewCount ? reviews.reduce((s: number, r: { rating: number }) => s + r.rating, 0) / reviewCount : vendor.rating || 0;
 
     // Monthly series (last 6 months)
     const now = new Date();
@@ -462,12 +462,12 @@ router.get('/listings', authenticate, async (req: AuthRequest, res) => {
 
     // Normalize into a single array with category info
     const listings = [
-      ...cleaning.map(l => ({ ...l, category: 'CLEANING' })),
-      ...handyman.map(l => ({ ...l, category: 'HANDYMAN' })),
-      ...beauty.map(l => ({ ...l, category: 'BEAUTY' })),
-      ...rentals.map(l => ({ ...l, category: 'RENTALS' })),
-      ...caregiving.map(l => ({ ...l, category: 'CAREGIVING' })),
-      ...groceryStores.map(l => ({ ...l, category: 'GROCERIES' })),
+      ...cleaning.map((l: any) => ({ ...l, category: 'CLEANING' })),
+      ...handyman.map((l: any) => ({ ...l, category: 'HANDYMAN' })),
+      ...beauty.map((l: any) => ({ ...l, category: 'BEAUTY' })),
+      ...rentals.map((l: any) => ({ ...l, category: 'RENTALS' })),
+      ...caregiving.map((l: any) => ({ ...l, category: 'CAREGIVING' })),
+      ...groceryStores.map((l: any) => ({ ...l, category: 'GROCERIES' })),
     ];
 
     res.json({ success: true, data: listings });
