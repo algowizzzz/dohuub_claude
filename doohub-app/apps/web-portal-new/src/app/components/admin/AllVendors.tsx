@@ -655,7 +655,7 @@ export function AllVendors() {
     setIsUpdating(vendorId);
     setActionFeedback(null);
     try {
-      await api.updateVendorStatus(vendorId, 'ACTIVE');
+      await api.updateVendorStatus(vendorId, 'APPROVED');
       // Update local state
       setVendors((prev) =>
         prev.map((v) =>

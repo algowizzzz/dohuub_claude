@@ -142,7 +142,7 @@ class ApiService {
     return this.get(`/admin/vendors/${id}`);
   }
 
-  async updateVendorStatus(id: string, status: 'ACTIVE' | 'SUSPENDED' | 'APPROVED' | 'REJECTED') {
+  async updateVendorStatus(id: string, status: 'PENDING' | 'APPROVED' | 'SUSPENDED' | 'REJECTED') {
     return this.patch(`/admin/vendors/${id}/status`, { status });
   }
 
