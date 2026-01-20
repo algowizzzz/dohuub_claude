@@ -6,8 +6,9 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 
-// Load environment variables
-dotenv.config({ path: '../../.env' });
+// Load environment variables (try multiple paths for different environments)
+dotenv.config(); // First try .env in current directory
+dotenv.config({ path: '../../.env' }); // Then try root .env for local development
 
 // Import routes
 import authRoutes from './routes/auth';
@@ -42,7 +43,8 @@ import notificationRoutes from './routes/notifications';
 import reportRoutes from './routes/reports';
 
 const app = express();
-const PORT = process.env.API_PORT || 3001;
+// Railway uses PORT, locally we use API_PORT
+const PORT = process.env.PORT || process.env.API_PORT || 3001;
 
 // Security middleware
 app.use(helmet());
@@ -53,7 +55,10 @@ app.use(cors({
     'http://localhost:3003',
     'http://localhost:8081',
     'exp://localhost:8081',
-  ],
+    // Production URLs
+    'https://dohuubclaude-production.up.railway.app',
+    process.env.FRONTEND_URL,
+  ].filter(Boolean) as string[],
   credentials: true,
 }));
 
