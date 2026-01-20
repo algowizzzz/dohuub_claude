@@ -1,12 +1,17 @@
 import Constants from 'expo-constants';
 
-// Get the local IP for development
+// Get the API URL based on environment
 const getApiUrl = () => {
-  // In production, use your actual API URL
-  if (process.env.NODE_ENV === 'production') {
-    return 'https://api.doohub.com';
+  // Use environment variable if set (for Vercel/production builds)
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
   }
-  
+
+  // In production, use Railway API
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://dohuubclaude-production.up.railway.app';
+  }
+
   // For local development - localhost works for iOS simulator and web
   return 'http://localhost:3001';
 };
