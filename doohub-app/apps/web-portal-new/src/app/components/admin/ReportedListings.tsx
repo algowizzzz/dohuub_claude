@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   X,
   Ban,
+  Loader2,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import {
@@ -16,6 +17,7 @@ import {
 } from "../ui/dialog";
 import { AdminSidebarRetractable } from "./AdminSidebarRetractable";
 import { AdminTopNav } from "./AdminTopNav";
+import { api } from "../../../services/api";
 
 interface ListingReport {
   id: string;
@@ -28,12 +30,12 @@ interface ListingReport {
   reportedAt: string;
 }
 
-// Mock data - Only listing reports
+// Mock data - Using real vendor IDs from Supabase
 const mockReports: ListingReport[] = [
   {
     id: "1",
     listingName: "Deep Cleaning Service",
-    vendorId: "V001",
+    vendorId: "cmkm7tbni001l75x1vpnnn4qw", // Sparkle Clean Co.
     vendorName: "CleanCo Services",
     customerName: "John D.",
     reportReason: "Service Not As Described",
@@ -44,7 +46,7 @@ const mockReports: ListingReport[] = [
   {
     id: "2",
     listingName: "Professional Plumbing Repair",
-    vendorId: "V002",
+    vendorId: "cmkm7tc11001y75x1w7kfqpws", // Fix-It Pro Services
     vendorName: "QuickFix Pro",
     customerName: "Maria S.",
     reportReason: "Safety Concerns",
@@ -55,7 +57,7 @@ const mockReports: ListingReport[] = [
   {
     id: "3",
     listingName: "Home Beauty Services",
-    vendorId: "V003",
+    vendorId: "cmkm7tcdp002b75x1977ghbeq", // Glamour Studio
     vendorName: "Glam Squad Mobile",
     customerName: "Sarah K.",
     reportReason: "Misleading Pricing",
@@ -65,23 +67,68 @@ const mockReports: ListingReport[] = [
   },
 ];
 
-function ReportCard({ report }: { report: ListingReport }) {
+function ReportCard({ report, onReportHandled }: { report: ListingReport; onReportHandled?: (reportId: string) => void }) {
   const navigate = useNavigate();
   const [showActionModal, setShowActionModal] = useState(false);
   const [actionType, setActionType] = useState<"ignore" | "suspend" | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const handleAction = (action: "ignore" | "suspend") => {
     setActionType(action);
     setShowActionModal(true);
   };
 
-  const confirmAction = () => {
-    // Handle action confirmation
-    setShowActionModal(false);
+  const confirmAction = async () => {
+    setIsLoading(true);
+    setFeedback(null);
+
+    try {
+      if (actionType === "suspend") {
+        await api.updateVendorStatus(report.vendorId, 'SUSPENDED');
+        setFeedback({ type: 'success', message: `${report.vendorName} has been suspended` });
+      } else {
+        // For ignore, we just dismiss the report (no API call needed for demo)
+        setFeedback({ type: 'success', message: 'Report ignored' });
+      }
+      setShowActionModal(false);
+      // Remove from list after short delay to show feedback
+      setTimeout(() => {
+        onReportHandled?.(report.id);
+      }, 1500);
+    } catch (error: any) {
+      console.error('Failed to process action:', error);
+      setFeedback({
+        type: 'error',
+        message: error?.response?.data?.error || error?.message || 'Action failed'
+      });
+      setShowActionModal(false);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <>
+      {/* Feedback Toast */}
+      {feedback && (
+        <div
+          className={`mb-4 p-4 rounded-lg flex items-center justify-between ${
+            feedback.type === 'success'
+              ? 'bg-[#D1FAE5] border border-[#10B981] text-[#065F46]'
+              : 'bg-[#FEE2E2] border border-[#DC2626] text-[#991B1B]'
+          }`}
+        >
+          <span className="font-medium">{feedback.message}</span>
+          <button
+            onClick={() => setFeedback(null)}
+            className="ml-4 text-current opacity-70 hover:opacity-100"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 sm:p-6 mb-5 hover:shadow-lg transition-shadow">
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
@@ -162,14 +209,22 @@ function ReportCard({ report }: { report: ListingReport }) {
           </DialogHeader>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowActionModal(false)}>
+            <Button variant="outline" onClick={() => setShowActionModal(false)} disabled={isLoading}>
               Cancel
             </Button>
             <Button
               className={actionType === "suspend" ? "bg-[#DC2626] hover:bg-[#B91C1C]" : ""}
               onClick={confirmAction}
+              disabled={isLoading}
             >
-              {actionType === "suspend" ? "Suspend Vendor" : "Ignore Report"}
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                actionType === "suspend" ? "Suspend Vendor" : "Ignore Report"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -193,7 +248,11 @@ export function ReportedListings() {
     }
   };
 
-  const [reports] = useState<ListingReport[]>(mockReports);
+  const [reports, setReports] = useState<ListingReport[]>(mockReports);
+
+  const handleReportHandled = (reportId: string) => {
+    setReports(prev => prev.filter(r => r.id !== reportId));
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -242,7 +301,7 @@ export function ReportedListings() {
           ) : (
             <div>
               {reports.map((report) => (
-                <ReportCard key={report.id} report={report} />
+                <ReportCard key={report.id} report={report} onReportHandled={handleReportHandled} />
               ))}
             </div>
           )}
