@@ -249,6 +249,181 @@ class ApiService {
   async getRegions() {
     return this.get('/regions');
   }
+
+  // =====================
+  // Listing CRUD Operations
+  // =====================
+
+  // Cleaning listings
+  async createCleaningListing(data: {
+    title: string;
+    description?: string;
+    cleaningType: string;
+    basePrice: number;
+    duration?: number;
+    images?: string[];
+  }) {
+    return this.post('/cleaning', data);
+  }
+
+  async updateCleaningListing(id: string, data: object) {
+    return this.put(`/cleaning/${id}`, data);
+  }
+
+  // Handyman listings
+  async createHandymanListing(data: {
+    title: string;
+    description?: string;
+    serviceType: string;
+    basePrice: number;
+    images?: string[];
+  }) {
+    return this.post('/handyman', data);
+  }
+
+  async updateHandymanListing(id: string, data: object) {
+    return this.put(`/handyman/${id}`, data);
+  }
+
+  // Beauty service listings
+  async createBeautyListing(data: {
+    title: string;
+    description?: string;
+    serviceType: string;
+    basePrice: number;
+    duration?: number;
+    images?: string[];
+  }) {
+    return this.post('/beauty', data);
+  }
+
+  async updateBeautyListing(id: string, data: object) {
+    return this.put(`/beauty/${id}`, data);
+  }
+
+  // Food listings
+  async createFoodListing(data: {
+    title: string;
+    description?: string;
+    foodType: string;
+    basePrice: number;
+    images?: string[];
+  }) {
+    return this.post('/food', data);
+  }
+
+  async updateFoodListing(id: string, data: object) {
+    return this.put(`/food/${id}`, data);
+  }
+
+  // Grocery listings
+  async createGroceryListing(data: {
+    name: string;
+    description?: string;
+    category: string;
+    price: number;
+    images?: string[];
+  }) {
+    return this.post('/groceries', data);
+  }
+
+  async updateGroceryListing(id: string, data: object) {
+    return this.put(`/groceries/${id}`, data);
+  }
+
+  // Rental listings
+  async createRentalListing(data: {
+    title: string;
+    description?: string;
+    propertyType: string;
+    pricePerMonth: number;
+    images?: string[];
+  }) {
+    return this.post('/rentals', data);
+  }
+
+  async updateRentalListing(id: string, data: object) {
+    return this.put(`/rentals/${id}`, data);
+  }
+
+  // Companionship listings
+  async createCompanionshipListing(data: {
+    title: string;
+    description?: string;
+    serviceType: string;
+    hourlyRate: number;
+    images?: string[];
+  }) {
+    return this.post('/companionship', data);
+  }
+
+  async updateCompanionshipListing(id: string, data: object) {
+    return this.put(`/companionship/${id}`, data);
+  }
+
+  // Ride assistance listings
+  async createRideAssistanceListing(data: {
+    title: string;
+    description?: string;
+    vehicleType: string;
+    pricePerKm: number;
+    images?: string[];
+  }) {
+    return this.post('/ride-assistance', data);
+  }
+
+  async updateRideAssistanceListing(id: string, data: object) {
+    return this.put(`/ride-assistance/${id}`, data);
+  }
+
+  // Generic listing methods (for admin use)
+  async createListing(type: string, data: object) {
+    const endpoints: Record<string, string> = {
+      cleaning: '/cleaning',
+      handyman: '/handyman',
+      beauty: '/beauty',
+      food: '/food',
+      groceries: '/groceries',
+      rentals: '/rentals',
+      companionship: '/companionship',
+      'ride-assistance': '/ride-assistance',
+    };
+    const endpoint = endpoints[type];
+    if (!endpoint) throw new Error(`Unknown listing type: ${type}`);
+    return this.post(endpoint, data);
+  }
+
+  async updateListing(type: string, id: string, data: object) {
+    const endpoints: Record<string, string> = {
+      cleaning: '/cleaning',
+      handyman: '/handyman',
+      beauty: '/beauty',
+      food: '/food',
+      groceries: '/groceries',
+      rentals: '/rentals',
+      companionship: '/companionship',
+      'ride-assistance': '/ride-assistance',
+    };
+    const endpoint = endpoints[type];
+    if (!endpoint) throw new Error(`Unknown listing type: ${type}`);
+    return this.put(`${endpoint}/${id}`, data);
+  }
+
+  async deleteListing(type: string, id: string) {
+    const endpoints: Record<string, string> = {
+      cleaning: '/cleaning',
+      handyman: '/handyman',
+      beauty: '/beauty',
+      food: '/food',
+      groceries: '/groceries',
+      rentals: '/rentals',
+      companionship: '/companionship',
+      'ride-assistance': '/ride-assistance',
+    };
+    const endpoint = endpoints[type];
+    if (!endpoint) throw new Error(`Unknown listing type: ${type}`);
+    return this.delete(`${endpoint}/${id}`);
+  }
 }
 
 // Export singleton instance

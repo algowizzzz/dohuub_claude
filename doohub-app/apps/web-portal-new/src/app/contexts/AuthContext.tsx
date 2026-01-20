@@ -7,7 +7,31 @@ interface User {
   name: string;
   role: "ADMIN" | "VENDOR" | "CUSTOMER";
   vendorId?: string;
+  profile?: {
+    firstName?: string;
+    lastName?: string;
+    avatar?: string;
+  };
 }
+
+// Helper to normalize user data from API
+const normalizeUser = (data: any): User | null => {
+  if (!data) return null;
+
+  const profile = data.profile || {};
+  const name = profile.firstName && profile.lastName
+    ? `${profile.firstName} ${profile.lastName}`
+    : profile.firstName || profile.lastName || data.email?.split('@')[0] || 'User';
+
+  return {
+    id: data.id,
+    email: data.email,
+    name,
+    role: data.role,
+    vendorId: data.vendorId,
+    profile: data.profile,
+  };
+};
 
 interface AuthContextType {
   user: User | null;
@@ -30,13 +54,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       const token = api.getToken();
+      console.log('[Auth] Checking session, token exists:', !!token);
+
       if (token) {
         try {
           const userData: any = await api.getCurrentUser();
-          setUser(userData.user || userData);
-        } catch (error) {
-          console.error("Failed to restore session:", error);
-          api.clearTokens();
+          console.log('[Auth] Got user data:', userData);
+          const normalized = normalizeUser(userData.user || userData);
+          console.log('[Auth] Normalized user:', normalized);
+          setUser(normalized);
+        } catch (error: any) {
+          console.error("[Auth] Failed to restore session:", error?.response?.status, error?.message);
+          // Only clear tokens on 401 Unauthorized, not on network errors
+          if (error?.response?.status === 401) {
+            api.clearTokens();
+          }
         }
       }
       setIsLoading(false);
@@ -47,16 +79,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
+      console.log('[Auth] Attempting login for:', email);
       const response: any = await api.login(email, password);
+      console.log('[Auth] Login response:', response);
 
       if (response.success && response.data) {
-        setUser(response.data.user);
+        const normalized = normalizeUser(response.data.user);
+        console.log('[Auth] Login successful, user:', normalized);
+        setUser(normalized);
         return { success: true };
       }
 
       return { success: false, error: response.error || "Login failed" };
     } catch (error: any) {
-      console.error("Login error:", error);
+      console.error("[Auth] Login error:", error?.response?.data || error?.message);
       return {
         success: false,
         error: error.response?.data?.error || "Invalid email or password"
@@ -112,9 +148,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = async () => {
     try {
       const userData: any = await api.getCurrentUser();
-      setUser(userData.user || userData);
+      const normalized = normalizeUser(userData.user || userData);
+      setUser(normalized);
     } catch (error) {
-      console.error("Failed to refresh user:", error);
+      console.error("[Auth] Failed to refresh user:", error);
     }
   };
 

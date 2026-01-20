@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
+import { api } from "../../../services/api";
 import {
   ArrowLeft,
   Upload,
@@ -299,14 +300,139 @@ export function CreateEditServiceWizard() {
     setSelectedItems(selectedItems.filter(itemId => itemId !== id));
   };
 
-  const handleSaveAsDraft = () => {
-    // Save as draft logic
-    navigate(`/admin/michelle-profiles/${profileId}/listings`);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Get listing type based on profile
+  const getListingType = () => {
+    if (isCleaningProfile) return 'cleaning';
+    if (isHandymanProfile) return 'handyman';
+    if (isBeautyServicesProfile) return 'beauty';
+    if (isBeautyProductsProfile) return 'beauty-products';
+    if (isGroceryProfile) return 'groceries';
+    if (isFoodProfile) return 'food';
+    if (isRentalPropertiesProfile) return 'rentals';
+    if (isRideAssistanceProfile) return 'ride-assistance';
+    return 'cleaning'; // default
   };
 
-  const handlePublish = () => {
-    // Publish logic
-    navigate(`/admin/michelle-profiles/${profileId}/listings`);
+  // Build listing data based on type
+  const buildListingData = (status: 'DRAFT' | 'ACTIVE') => {
+    const listingType = getListingType();
+    const images = imageGallery.map(img => img.url);
+
+    const baseData = {
+      title: serviceTitle || itemName,
+      description: longDescription || shortDescription,
+      images,
+      status,
+    };
+
+    switch (listingType) {
+      case 'cleaning':
+        return {
+          ...baseData,
+          cleaningType: productCategory || 'STANDARD',
+          basePrice: parseFloat(price) || 0,
+          duration: parseInt(duration) || 120,
+        };
+      case 'handyman':
+        return {
+          ...baseData,
+          serviceType: productCategory || 'GENERAL',
+          basePrice: parseFloat(price) || parseFloat(hourlyRate) || 0,
+        };
+      case 'beauty':
+        return {
+          ...baseData,
+          serviceType: productCategory || 'GENERAL',
+          basePrice: parseFloat(price) || 0,
+          duration: parseInt(duration) || 60,
+        };
+      case 'groceries':
+        return {
+          name: itemName || serviceTitle,
+          description: longDescription || shortDescription,
+          category: productCategory || 'GENERAL',
+          price: parseFloat(price) || 0,
+          images,
+        };
+      case 'food':
+        return {
+          ...baseData,
+          foodType: productCategory || 'MEAL',
+          basePrice: parseFloat(price) || 0,
+          cuisines: cuisines,
+        };
+      case 'rentals':
+        return {
+          ...baseData,
+          propertyType: propertyType || 'APARTMENT',
+          pricePerMonth: parseFloat(pricePerNight) || parseFloat(price) || 0,
+          bedrooms: parseInt(bedrooms) || 1,
+          bathrooms: parseInt(bathrooms) || 1,
+          location,
+          amenities,
+        };
+      case 'ride-assistance':
+        return {
+          ...baseData,
+          vehicleType: vehicleTypes[0] || 'SEDAN',
+          pricePerKm: parseFloat(hourlyRate) || parseFloat(price) || 0,
+        };
+      default:
+        return baseData;
+    }
+  };
+
+  const handleSaveAsDraft = async () => {
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      const listingType = getListingType();
+      const data = buildListingData('DRAFT');
+
+      console.log('[Listing] Saving draft:', { type: listingType, data });
+
+      if (isEditing && listingId) {
+        await api.updateListing(listingType, listingId, data);
+      } else {
+        await api.createListing(listingType, data);
+      }
+
+      navigate(`/admin/michelle-profiles/${profileId}/listings`);
+    } catch (error: any) {
+      console.error('[Listing] Save error:', error);
+      setSaveError(error?.response?.data?.error || error?.message || 'Failed to save listing');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      const listingType = getListingType();
+      const data = buildListingData('ACTIVE');
+
+      console.log('[Listing] Publishing:', { type: listingType, data });
+
+      if (isEditing && listingId) {
+        await api.updateListing(listingType, listingId, data);
+      } else {
+        await api.createListing(listingType, data);
+      }
+
+      navigate(`/admin/michelle-profiles/${profileId}/listings`);
+    } catch (error: any) {
+      console.error('[Listing] Publish error:', error);
+      setSaveError(error?.response?.data?.error || error?.message || 'Failed to publish listing');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const titleCharCount = serviceTitle.length;
@@ -2481,22 +2607,31 @@ export function CreateEditServiceWizard() {
             </div>
           )}
 
+          {/* Error Display */}
+          {saveError && (
+            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+              <strong>Error:</strong> {saveError}
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-3 mt-10 pt-8 border-t border-[#E5E7EB]">
             <Button
               onClick={handleSaveAsDraft}
               variant="outline"
               className="h-12 px-6 text-base font-semibold"
+              disabled={isSaving}
             >
               <Save className="w-[18px] h-[18px] mr-2" />
-              Save as Draft
+              {isSaving ? "Saving..." : "Save as Draft"}
             </Button>
             <Button
               onClick={handlePublish}
               className="h-12 px-6 text-base font-semibold bg-[#059669] hover:bg-[#047857] text-white flex-1 sm:flex-none"
+              disabled={isSaving}
             >
               <CheckCircle2 className="w-[18px] h-[18px] mr-2" />
-              {isRentalPropertiesProfile ? "Publish Property" : (isBeautyProductsProfile || isGroceryProfile || isFoodProfile) ? "Publish Product" : "Publish Service"}
+              {isSaving ? "Publishing..." : isRentalPropertiesProfile ? "Publish Property" : (isBeautyProductsProfile || isGroceryProfile || isFoodProfile) ? "Publish Product" : "Publish Service"}
             </Button>
           </div>
         </div>
