@@ -545,16 +545,17 @@ export function AllVendors() {
   };
 
   // State
-  const [vendors, setVendors] = useState<Vendor[]>(mockVendors);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [countryFilter, setCountryFilter] = useState("all");
   const [regionFilter, setRegionFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const itemsPerPage = 20;
 
   // Fetch vendors from API
@@ -582,10 +583,16 @@ export function AllVendors() {
           email: v.email || '',
           trialDaysLeft: v.trialDaysLeft,
         })));
+        setError(null);
+      } else {
+        // No vendors from API, use mock data for demo
+        setVendors(mockVendors);
+        setError('Using demo data - no vendors in database');
       }
     } catch (err: any) {
       console.error('Failed to fetch vendors from API, using mock data:', err);
-      // Keep using mock data if API fails
+      // Use mock data if API fails
+      setVendors(mockVendors);
       setError('Using demo data - API not available');
     } finally {
       setIsLoading(false);
@@ -597,11 +604,21 @@ export function AllVendors() {
     fetchVendors();
   }, [fetchVendors]);
 
+  // Clear feedback after 5 seconds
+  useEffect(() => {
+    if (actionFeedback) {
+      const timer = setTimeout(() => setActionFeedback(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [actionFeedback]);
+
   // Suspend/Unsuspend handlers with API integration
   const handleSuspend = async (vendorId: string) => {
-    if (!window.confirm("Are you sure you want to suspend this vendor?")) return;
+    const vendor = vendors.find(v => v.id === vendorId);
+    if (!window.confirm(`Are you sure you want to suspend ${vendor?.businessName || 'this vendor'}?`)) return;
 
     setIsUpdating(vendorId);
+    setActionFeedback(null);
     try {
       await api.updateVendorStatus(vendorId, 'SUSPENDED');
       // Update local state
@@ -610,23 +627,33 @@ export function AllVendors() {
           v.id === vendorId ? { ...v, status: "suspended" as const } : v
         )
       );
+      setActionFeedback({ type: 'success', message: `${vendor?.businessName || 'Vendor'} has been suspended` });
     } catch (err: any) {
       console.error('Failed to suspend vendor:', err);
-      // Still update local state for demo purposes
-      setVendors((prev) =>
-        prev.map((v) =>
-          v.id === vendorId ? { ...v, status: "suspended" as const } : v
-        )
-      );
+      const errorMsg = err?.response?.data?.error || err?.message || 'Failed to suspend vendor';
+      // Check if using demo data (mock IDs won't exist in API)
+      if (error?.includes('demo data')) {
+        // Update local state for demo purposes
+        setVendors((prev) =>
+          prev.map((v) =>
+            v.id === vendorId ? { ...v, status: "suspended" as const } : v
+          )
+        );
+        setActionFeedback({ type: 'success', message: `${vendor?.businessName || 'Vendor'} suspended (demo mode)` });
+      } else {
+        setActionFeedback({ type: 'error', message: errorMsg });
+      }
     } finally {
       setIsUpdating(null);
     }
   };
 
   const handleUnsuspend = async (vendorId: string) => {
-    if (!window.confirm("Are you sure you want to activate this vendor?")) return;
+    const vendor = vendors.find(v => v.id === vendorId);
+    if (!window.confirm(`Are you sure you want to activate ${vendor?.businessName || 'this vendor'}?`)) return;
 
     setIsUpdating(vendorId);
+    setActionFeedback(null);
     try {
       await api.updateVendorStatus(vendorId, 'ACTIVE');
       // Update local state
@@ -635,14 +662,22 @@ export function AllVendors() {
           v.id === vendorId ? { ...v, status: "active" as const } : v
         )
       );
+      setActionFeedback({ type: 'success', message: `${vendor?.businessName || 'Vendor'} has been activated` });
     } catch (err: any) {
       console.error('Failed to activate vendor:', err);
-      // Still update local state for demo purposes
-      setVendors((prev) =>
-        prev.map((v) =>
-          v.id === vendorId ? { ...v, status: "active" as const } : v
-        )
-      );
+      const errorMsg = err?.response?.data?.error || err?.message || 'Failed to activate vendor';
+      // Check if using demo data (mock IDs won't exist in API)
+      if (error?.includes('demo data')) {
+        // Update local state for demo purposes
+        setVendors((prev) =>
+          prev.map((v) =>
+            v.id === vendorId ? { ...v, status: "active" as const } : v
+          )
+        );
+        setActionFeedback({ type: 'success', message: `${vendor?.businessName || 'Vendor'} activated (demo mode)` });
+      } else {
+        setActionFeedback({ type: 'error', message: errorMsg });
+      }
     } finally {
       setIsUpdating(null);
     }
@@ -776,6 +811,32 @@ export function AllVendors() {
             </p>
           </div>
 
+          {/* Action Feedback Toast */}
+          {actionFeedback && (
+            <div
+              className={`mb-4 p-4 rounded-lg flex items-center justify-between ${
+                actionFeedback.type === 'success'
+                  ? 'bg-[#D1FAE5] border border-[#10B981] text-[#065F46]'
+                  : 'bg-[#FEE2E2] border border-[#DC2626] text-[#991B1B]'
+              }`}
+            >
+              <span className="font-medium">{actionFeedback.message}</span>
+              <button
+                onClick={() => setActionFeedback(null)}
+                className="ml-4 text-current opacity-70 hover:opacity-100"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Data Source Indicator */}
+          {error && (
+            <div className="mb-4 p-3 rounded-lg bg-[#FEF3C7] border border-[#F59E0B] text-[#92400E] text-sm">
+              {error}
+            </div>
+          )}
+
           {/* Quick Stats Bar */}
           <div className="bg-[#F8F9FA] border border-[#E5E7EB] rounded-lg p-4 sm:p-5 mb-6">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -880,7 +941,12 @@ export function AllVendors() {
           </div>
 
           {/* Vendor Cards */}
-          {paginatedVendors.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="w-12 h-12 border-4 border-[#E5E7EB] border-t-[#1F2937] rounded-full animate-spin mb-4" />
+              <p className="text-[15px] text-[#6B7280]">Loading vendors...</p>
+            </div>
+          ) : paginatedVendors.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
               <div className="w-[120px] h-[120px] rounded-full bg-[#F8F9FA] flex items-center justify-center mb-6">
                 <Building2 className="w-16 h-16 text-[#9CA3AF]" />
