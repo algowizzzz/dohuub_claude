@@ -99,6 +99,7 @@ class ApiService {
   }
 
   // Auth endpoints
+  // Using dev-login for testing (skips OTP verification)
   async login(email: string, password: string) {
     const response = await this.client.post<{
       success: boolean;
@@ -107,7 +108,7 @@ class ApiService {
         token: string;
         refreshToken?: string;
       };
-    }>('/auth/login', { email, password });
+    }>('/auth/dev-login', { email });
 
     if (response.data.success && response.data.data.token) {
       this.setToken(response.data.data.token);
