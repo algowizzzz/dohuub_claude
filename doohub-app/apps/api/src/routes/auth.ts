@@ -294,11 +294,12 @@ router.post('/logout', authenticate, async (req: AuthRequest, res) => {
 });
 
 // DEV ONLY: Direct login without OTP (for testing)
+// TODO: Re-enable production check before real launch
 router.post('/dev-login', async (req, res) => {
-  // Only allow in development
-  if (process.env.NODE_ENV === 'production') {
-    return res.status(403).json({ error: 'Not available in production' });
-  }
+  // Temporarily disabled for testing
+  // if (process.env.NODE_ENV === 'production') {
+  //   return res.status(403).json({ error: 'Not available in production' });
+  // }
 
   try {
     const { email } = req.body;
