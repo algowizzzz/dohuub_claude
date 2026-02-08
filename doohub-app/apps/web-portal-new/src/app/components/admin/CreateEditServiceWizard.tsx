@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { api } from "../../../services/api";
 import {
@@ -80,78 +80,50 @@ export function CreateEditServiceWizard() {
     typeof window !== 'undefined' && window.innerWidth >= 1024 ? false : true
   );
 
-  // Determine profile type based on profileId
-  // Profile IDs: "1", "2", "3" are Cleaning Services
-  // Profile IDs: "4", "5", "6" are Handyman Services
-  // Profile IDs: "10", "11", "12" are Beauty Services
-  // Profile IDs: "13", "14", "15" are Beauty Products
-  // Profile IDs: "7", "8", "9" are Grocery
-  // Profile IDs: "19", "20", "21" are Food
-  // Profile IDs: "22", "23", "24" are Rental Properties
-  // Profile IDs: "25", "26", "27" are Ride Assistance
-  const isCleaningProfile = profileId === "1" || profileId === "2" || profileId === "3";
-  const isHandymanProfile = profileId === "4" || profileId === "5" || profileId === "6";
-  const isBeautyServicesProfile = profileId === "10" || profileId === "11" || profileId === "12";
-  const isBeautyProductsProfile = profileId === "13" || profileId === "14" || profileId === "15";
-  const isGroceryProfile = profileId === "7" || profileId === "8" || profileId === "9";
-  const isFoodProfile = profileId === "19" || profileId === "20" || profileId === "21";
-  const isRentalPropertiesProfile = profileId === "22" || profileId === "23" || profileId === "24";
-  const isRideAssistanceProfile = profileId === "25" || profileId === "26" || profileId === "27";
-  
-  // Mock profile data based on category
-  const getProfileInfo = () => {
-    if (profileId === "1") return { name: "Sparkle Clean by Michelle", category: "Cleaning Services" };
-    if (profileId === "2") return { name: "Michelle's Deep Clean Express", category: "Cleaning Services" };
-    if (profileId === "3") return { name: "Green & Clean by Michelle", category: "Cleaning Services" };
-    if (profileId === "4") return { name: "Fix-It Pro by Michelle", category: "Handyman Services" };
-    if (profileId === "5") return { name: "Michelle's Home Repair Hub", category: "Handyman Services" };
-    if (profileId === "6") return { name: "Handyman Express Solutions", category: "Handyman Services" };
-    if (profileId === "7") return { name: "Fresh Harvest by Michelle", category: "Grocery" };
-    if (profileId === "8") return { name: "Organic Essentials Delivery", category: "Grocery" };
-    if (profileId === "9") return { name: "Michelle's Meal Prep & Groceries", category: "Grocery" };
-    if (profileId === "10") return { name: "Beauty by Michelle", category: "Beauty Services" };
-    if (profileId === "11") return { name: "Glam Studio Mobile", category: "Beauty Services" };
-    if (profileId === "12") return { name: "Michelle's Spa On-The-Go", category: "Beauty Services" };
-    if (profileId === "13") return { name: "Glam Cosmetics Shop", category: "Beauty Products" };
-    if (profileId === "14") return { name: "Pure Skincare Boutique", category: "Beauty Products" };
-    if (profileId === "15") return { name: "Beauty Essentials by Michelle", category: "Beauty Products" };
-    if (profileId === "19") return { name: "Mama's Kitchen", category: "Food" };
-    if (profileId === "20") return { name: "Chef's Table by Michelle", category: "Food" };
-    if (profileId === "21") return { name: "Homestyle Meals", category: "Food" };
-    if (profileId === "22") return { name: "Michelle's Properties", category: "Rental Properties" };
-    if (profileId === "23") return { name: "Urban Stays by Michelle", category: "Rental Properties" };
-    if (profileId === "24") return { name: "Cozy Rentals", category: "Rental Properties" };
-    if (profileId === "25") return { name: "CareWheels Transportation", category: "Ride Assistance" };
-    if (profileId === "26") return { name: "Senior Care Rides", category: "Ride Assistance" };
-    if (profileId === "27") return { name: "SafeTransit Solutions", category: "Ride Assistance" };
-    if (profileId === "32") return { name: "Caring Companions by Michelle", category: "Companionship Support" };
-    if (profileId === "33") return { name: "Michelle's Senior Care Network", category: "Companionship Support" };
-    if (profileId === "34") return { name: "Compassionate Care Services", category: "Companionship Support" };
-    return { name: "Sparkle Clean by Michelle", category: "Cleaning Services" };
-  };
-  
-  const { name: profileName, category: profileCategory } = getProfileInfo();
-  
-  // Mock vendor regions - these would be fetched from the vendor's store settings
-  const getVendorRegions = () => {
-    if (isRentalPropertiesProfile) {
-      return [
-        "Manhattan, New York, NY",
-        "Brooklyn, New York, NY",
-        "Queens, New York, NY",
-        "Bronx, New York, NY",
-        "Jersey City, NJ"
-      ];
-    }
-    return [
-      "New York, NY",
-      "Brooklyn, NY",
-      "Queens, NY",
-      "Manhattan, NY"
-    ];
-  };
-  
-  const vendorRegions = getVendorRegions();
+  // Profile and region state (fetched from API)
+  const [profileInfo, setProfileInfo] = useState<{ name: string; category: string }>({ name: "", category: "" });
+  const [vendorRegions, setVendorRegions] = useState<string[]>([]);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+
+  // Fetch profile info from API
+  useEffect(() => {
+    const fetchProfileInfo = async () => {
+      if (!profileId) return;
+      setIsLoadingProfile(true);
+      try {
+        const response: any = await api.get(`/admin/michelle-profiles/${profileId}`);
+        const profile = response?.data || response;
+        setProfileInfo({
+          name: profile.businessName || profile.name || 'Unknown Profile',
+          category: profile.category || 'General',
+        });
+        // Fetch vendor regions from the profile
+        const regionData = profile.regions || [];
+        setVendorRegions(Array.isArray(regionData)
+          ? regionData.map((r: any) => typeof r === 'string' ? r : r.name || `${r.city}, ${r.state}`)
+          : []);
+      } catch (err) {
+        console.error('Failed to fetch profile info:', err);
+        setProfileInfo({ name: 'Unknown Profile', category: 'General' });
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+    fetchProfileInfo();
+  }, [profileId]);
+
+  const profileName = profileInfo.name;
+  const profileCategory = profileInfo.category;
+
+  // Determine profile type based on category from API
+  const isCleaningProfile = profileCategory === "Cleaning Services";
+  const isHandymanProfile = profileCategory === "Handyman Services";
+  const isBeautyServicesProfile = profileCategory === "Beauty Services";
+  const isBeautyProductsProfile = profileCategory === "Beauty Products";
+  const isGroceryProfile = profileCategory === "Grocery";
+  const isFoodProfile = profileCategory === "Food";
+  const isRentalPropertiesProfile = profileCategory === "Rental Properties";
+  const isRideAssistanceProfile = profileCategory === "Ride Assistance";
   
   // Select default items based on category
   const getDefaultItems = () => {

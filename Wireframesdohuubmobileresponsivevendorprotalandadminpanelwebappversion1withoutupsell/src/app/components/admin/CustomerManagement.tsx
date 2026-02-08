@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
+import { api } from "../../../services/api";
 import {
   ArrowLeft,
   Users,
@@ -47,13 +48,7 @@ interface Customer {
   paymentMethod?: string;
 }
 
-// Mock data
-const mockCustomers: Customer[] = [
-  {
-    id: "C123",
-    name: "Sarah Johnson",
-    email: "sarah.j@email.com",
-    phone: "+1 (555) 234-5678",
+function CustomerCard({ customer }: { customer: Customer }) {
     verified: true,
     joinedDate: "2024-03-15",
     status: "active",
@@ -96,10 +91,6 @@ const mockCustomers: Customer[] = [
     avgRatingGiven: 4.8,
     lastActive: "5 days ago",
     paymentMethod: "Mastercard ****9012",
-  },
-];
-
-function CustomerCard({ customer }: { customer: Customer }) {
   const navigate = useNavigate();
 
   return (
@@ -178,6 +169,9 @@ function CustomerCard({ customer }: { customer: Customer }) {
 export function CustomerManagement() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -193,9 +187,47 @@ export function CustomerManagement() {
     }
   };
 
-  const [customers] = useState<Customer[]>(mockCustomers);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  // Fetch customers from API
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const response: any = await api.getCustomers();
+        const mappedCustomers: Customer[] = (response.customers || response || []).map((customer: any) => ({
+          id: customer.id,
+          name: customer.name || "Unknown",
+          email: customer.email || "",
+          phone: customer.phone || "",
+          avatar: customer.avatar || customer.profileImage,
+          verified: customer.verified || customer.isVerified || false,
+          joinedDate: customer.createdAt || customer.joinedDate || "",
+          status: (customer.status?.toLowerCase() || "active") as "active" | "inactive" | "suspended",
+          bookingsCount: customer.bookingsCount || customer.totalBookings || 0,
+          totalSpent: customer.totalSpent || 0,
+          avgOrderValue: customer.avgOrderValue || customer.averageOrderValue || 0,
+          reviewsWritten: customer.reviewsWritten || customer.reviewCount || 0,
+          avgRatingGiven: customer.avgRatingGiven || customer.averageRating || 0,
+          lastActive: customer.lastActive || "N/A",
+          paymentMethod: customer.paymentMethod,
+        }));
+
+        setCustomers(mappedCustomers);
+      } catch (err: any) {
+        console.error("Failed to fetch customers:", err);
+        setError(err.response?.data?.error || "Failed to load customers. Please try again later.");
+        setCustomers([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCustomers();
+  }, []);
 
   // If viewing specific customer
   if (id) {

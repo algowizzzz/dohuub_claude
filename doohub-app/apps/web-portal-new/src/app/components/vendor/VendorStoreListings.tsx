@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
-import { ArrowLeft, FileText, Star, TrendingUp, Check } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { ArrowLeft, FileText, Star, TrendingUp, Check, AlertCircle, Loader2 } from "lucide-react";
 import { VendorSidebar } from "./VendorSidebar";
 import { VendorTopNav } from "./VendorTopNav";
 import { Button } from "../ui/button";
 import { useNavigate, useParams } from "react-router-dom";
-import { getCreateButtonText, isProductCategory, vendorBusinessInfo, storeDataMap as categoryDataMap } from "../../data/vendorBusinessData";
+import { getCreateButtonText, isProductCategory } from "../../data/vendorBusinessData";
 import {
   Select,
   SelectContent,
@@ -12,6 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
+import { useAuth } from "../../contexts/AuthContext";
+import { api } from "../../../services/api";
 
 interface Listing {
   id: string;
@@ -33,563 +35,11 @@ interface StoreData {
   listings: Listing[];
 }
 
-// Mock data for each store category
-const storeDataMap: Record<string, StoreData> = {
-  "1": {
-    // Cleaning Services
-    name: "Sparkle Clean Co.",
-    category: "Cleaning Services",
-    listings: [
-      {
-        id: "1",
-        title: "Deep Cleaning Service",
-        description: "Complete top-to-bottom home cleaning for a spotless living space",
-        price: 150,
-        bookings: 48,
-        bookingTrend: 10,
-        status: "ACTIVE",
-        rating: 4.8,
-        reviews: 23,
-        regions: 3,
-        whatsIncluded: [
-          "Professional equipment & supplies",
-          "Trained professionals",
-          "Eco-friendly products available",
-          "Quality guarantee",
-        ],
-      },
-      {
-        id: "2",
-        title: "Regular Cleaning (Weekly)",
-        description: "Weekly maintenance cleaning to keep your space fresh and tidy",
-        price: 80,
-        bookings: 67,
-        bookingTrend: 8,
-        status: "ACTIVE",
-        rating: 4.9,
-        reviews: 43,
-        regions: 4,
-        whatsIncluded: [
-          "Professional equipment & supplies",
-          "Trained professionals",
-          "Eco-friendly products available",
-          "Living rooms and bedrooms",
-          "+2 more",
-        ],
-      },
-      {
-        id: "3",
-        title: "Move-Out Cleaning",
-        description: "Complete cleaning for moving out, includes appliances and deep cleaning of all areas",
-        price: 200,
-        bookings: 18,
-        bookingTrend: -5,
-        status: "ACTIVE",
-        rating: 5.0,
-        reviews: 12,
-        regions: 2,
-        whatsIncluded: [
-          "Professional equipment & supplies",
-          "Trained professionals",
-          "All appliances cleaned",
-          "Deep cleaning of areas",
-        ],
-      },
-      {
-        id: "4",
-        title: "Office Cleaning",
-        description: "Professional office cleaning for small to medium-sized businesses",
-        price: 120,
-        bookings: 32,
-        bookingTrend: 15,
-        status: "ACTIVE",
-        rating: 4.7,
-        reviews: 28,
-        regions: 3,
-        whatsIncluded: [
-          "Professional equipment & supplies",
-          "Trained professionals",
-          "Eco-friendly products available",
-          "After-hours available",
-        ],
-      },
-    ],
-  },
-  "2": {
-    // Handyman Services
-    name: "Fix-It Pro Services",
-    category: "Handyman Services",
-    listings: [
-      {
-        id: "1",
-        title: "General Repairs",
-        description: "Fix common household issues including minor plumbing, electrical, and carpentry",
-        price: 75,
-        bookings: 56,
-        bookingTrend: 12,
-        status: "ACTIVE",
-        rating: 4.9,
-        reviews: 34,
-        regions: 2,
-        whatsIncluded: [
-          "Licensed & insured",
-          "All tools provided",
-          "Same-day service available",
-          "Quality guarantee",
-        ],
-      },
-      {
-        id: "2",
-        title: "Furniture Assembly",
-        description: "Expert assembly of furniture from any retailer",
-        price: 60,
-        bookings: 42,
-        bookingTrend: 8,
-        status: "ACTIVE",
-        rating: 4.8,
-        reviews: 29,
-        regions: 2,
-        whatsIncluded: [
-          "All tools provided",
-          "Fast service",
-          "Cleanup included",
-          "Quality guarantee",
-        ],
-      },
-      {
-        id: "3",
-        title: "Painting Services",
-        description: "Interior and exterior painting for homes and offices",
-        price: 200,
-        bookingTrend: 15,
-        bookings: 28,
-        status: "ACTIVE",
-        rating: 4.7,
-        reviews: 18,
-        regions: 3,
-        whatsIncluded: [
-          "Licensed & insured",
-          "Premium paint supplies",
-          "Color consultation",
-          "Cleanup included",
-        ],
-      },
-    ],
-  },
-  "3": {
-    // Groceries
-    name: "Fresh Harvest Groceries",
-    category: "Groceries",
-    listings: [
-      {
-        id: "1",
-        title: "Organic Whole Milk",
-        description: "Fresh organic whole milk from local dairy farms, 1 gallon",
-        price: 6,
-        bookings: 156,
-        bookingTrend: 20,
-        status: "ACTIVE",
-        rating: 4.9,
-        reviews: 143,
-        regions: 4,
-        whatsIncluded: [
-          "100% organic",
-          "Locally sourced",
-          "No hormones or antibiotics",
-          "Glass bottle deposit",
-        ],
-      },
-      {
-        id: "2",
-        title: "Fresh Eggs (Dozen)",
-        description: "Farm-fresh organic eggs from free-range chickens",
-        price: 8,
-        bookings: 189,
-        bookingTrend: 25,
-        status: "ACTIVE",
-        rating: 5.0,
-        reviews: 167,
-        regions: 4,
-        whatsIncluded: [
-          "Free-range chickens",
-          "Organic feed",
-          "Local farms",
-          "Grade AA",
-        ],
-      },
-      {
-        id: "3",
-        title: "Artisan Sourdough Bread",
-        description: "Fresh-baked artisan sourdough bread, 24oz loaf",
-        price: 7,
-        bookings: 132,
-        bookingTrend: 18,
-        status: "ACTIVE",
-        rating: 4.8,
-        reviews: 98,
-        regions: 3,
-        whatsIncluded: [
-          "Freshly baked daily",
-          "Natural ingredients",
-          "No preservatives",
-          "Traditional recipe",
-        ],
-      },
-      {
-        id: "4",
-        title: "Organic Bananas (2 lbs)",
-        description: "Fresh organic bananas, perfect ripeness",
-        price: 3,
-        bookings: 203,
-        bookingTrend: 15,
-        status: "ACTIVE",
-        rating: 4.7,
-        reviews: 156,
-        regions: 4,
-        whatsIncluded: [
-          "Certified organic",
-          "Fair trade",
-          "Hand-selected",
-          "Peak ripeness",
-        ],
-      },
-    ],
-  },
-  "4": {
-    // Food
-    name: "Mama's Kitchen",
-    category: "Food",
-    listings: [
-      {
-        id: "1",
-        title: "Chicken Tikka Masala",
-        description: "Traditional Indian curry with tender chicken in creamy tomato sauce, served with basmati rice",
-        price: 16,
-        bookings: 267,
-        bookingTrend: 28,
-        status: "ACTIVE",
-        rating: 5.0,
-        reviews: 189,
-        regions: 3,
-        whatsIncluded: [
-          "Basmati rice included",
-          "Homemade naan bread",
-          "Fresh ingredients",
-          "Medium spice level",
-        ],
-      },
-      {
-        id: "2",
-        title: "Beef Burger Deluxe",
-        description: "Classic beef burger with lettuce, tomato, cheese, and special sauce on brioche bun",
-        price: 13,
-        bookings: 198,
-        bookingTrend: 22,
-        status: "ACTIVE",
-        rating: 4.9,
-        reviews: 145,
-        regions: 2,
-        whatsIncluded: [
-          "Fresh ground beef",
-          "Crispy fries included",
-          "Homemade sauce",
-          "Premium toppings",
-        ],
-      },
-      {
-        id: "3",
-        title: "Vegan Buddha Bowl",
-        description: "Nutritious bowl with quinoa, roasted vegetables, chickpeas, avocado, and tahini dressing",
-        price: 14,
-        bookings: 145,
-        bookingTrend: 35,
-        status: "ACTIVE",
-        rating: 4.8,
-        reviews: 102,
-        regions: 3,
-        whatsIncluded: [
-          "100% plant-based",
-          "Gluten-free option",
-          "Fresh vegetables",
-          "Protein-rich",
-        ],
-      },
-      {
-        id: "4",
-        title: "Margherita Pizza (12\")",
-        description: "Wood-fired pizza with fresh mozzarella, basil, and San Marzano tomatoes",
-        price: 18,
-        bookings: 223,
-        bookingTrend: 30,
-        status: "ACTIVE",
-        rating: 4.9,
-        reviews: 178,
-        regions: 2,
-        whatsIncluded: [
-          "Wood-fired oven",
-          "Fresh dough daily",
-          "Imported ingredients",
-          "Traditional recipe",
-        ],
-      },
-    ],
-  },
-  "5": {
-    // Beauty Services
-    name: "Glam Beauty Studio",
-    category: "Beauty Services",
-    listings: [
-      {
-        id: "1",
-        title: "Signature Facial Treatment",
-        description: "Rejuvenating facial with customized skincare treatment",
-        price: 85,
-        bookings: 67,
-        bookingTrend: 15,
-        status: "ACTIVE",
-        rating: 4.8,
-        reviews: 56,
-        regions: 3,
-        whatsIncluded: [
-          "Licensed estheticians",
-          "Premium products",
-          "Personalized treatment",
-          "Relaxing environment",
-        ],
-      },
-      {
-        id: "2",
-        title: "Hair Styling & Color",
-        description: "Professional hair cutting, styling, and coloring services",
-        price: 120,
-        bookings: 89,
-        bookingTrend: 22,
-        status: "ACTIVE",
-        rating: 4.9,
-        reviews: 73,
-        regions: 3,
-        whatsIncluded: [
-          "Expert stylists",
-          "Premium hair products",
-          "Color consultation",
-          "Complimentary styling",
-        ],
-      },
-    ],
-  },
-  "6": {
-    // Beauty Products
-    name: "Pure Skincare Boutique",
-    category: "Beauty Products",
-    listings: [
-      {
-        id: "1",
-        title: "Hydrating Face Moisturizer",
-        description: "Lightweight daily moisturizer with hyaluronic acid and vitamin E, 50ml",
-        price: 42,
-        bookings: 187,
-        bookingTrend: 32,
-        status: "ACTIVE",
-        rating: 4.9,
-        reviews: 156,
-        regions: 3,
-        whatsIncluded: [
-          "All-natural ingredients",
-          "Cruelty-free",
-          "Dermatologist tested",
-          "Free shipping",
-        ],
-      },
-      {
-        id: "2",
-        title: "Anti-Aging Serum",
-        description: "Premium anti-aging serum with retinol and hyaluronic acid, 30ml",
-        price: 65,
-        bookings: 143,
-        bookingTrend: 28,
-        status: "ACTIVE",
-        rating: 4.8,
-        reviews: 128,
-        regions: 3,
-        whatsIncluded: [
-          "Clinical strength formula",
-          "All-natural ingredients",
-          "Dermatologist tested",
-          "Money-back guarantee",
-        ],
-      },
-      {
-        id: "3",
-        title: "Matte Lipstick - Ruby Red",
-        description: "Long-lasting matte lipstick in classic ruby red shade, 4g",
-        price: 24,
-        bookings: 234,
-        bookingTrend: 40,
-        status: "ACTIVE",
-        rating: 4.9,
-        reviews: 203,
-        regions: 2,
-        whatsIncluded: [
-          "16-hour wear",
-          "Vegan formula",
-          "Moisturizing",
-          "Cruelty-free",
-        ],
-      },
-      {
-        id: "4",
-        title: "Vitamin C Facial Cleanser",
-        description: "Brightening facial cleanser with vitamin C and gentle exfoliants, 150ml",
-        price: 28,
-        bookings: 198,
-        bookingTrend: 25,
-        status: "ACTIVE",
-        rating: 4.7,
-        reviews: 167,
-        regions: 3,
-        whatsIncluded: [
-          "pH balanced",
-          "Sulfate-free",
-          "All skin types",
-          "Natural ingredients",
-        ],
-      },
-    ],
-  },
-  "7": {
-    // Rental Properties
-    name: "Urban Stays Properties",
-    category: "Rental Properties",
-    listings: [
-      {
-        id: "1",
-        title: "Downtown Studio Apartment",
-        description: "Modern studio in the heart of downtown, fully furnished",
-        price: 1500,
-        bookings: 12,
-        bookingTrend: 8,
-        status: "ACTIVE",
-        rating: 4.9,
-        reviews: 23,
-        regions: 1,
-        whatsIncluded: [
-          "Fully furnished",
-          "Utilities included",
-          "Pet-friendly",
-          "Gym access",
-        ],
-      },
-      {
-        id: "2",
-        title: "2-Bedroom Family Home",
-        description: "Spacious family home in quiet neighborhood with backyard",
-        price: 2200,
-        bookings: 8,
-        bookingTrend: 5,
-        status: "ACTIVE",
-        rating: 4.8,
-        reviews: 15,
-        regions: 1,
-        whatsIncluded: [
-          "2 bed / 2 bath",
-          "Private backyard",
-          "Pet-friendly",
-          "Washer/dryer included",
-        ],
-      },
-    ],
-  },
-  "8": {
-    // Ride Assistance
-    name: "CareWheels Transportation",
-    category: "Ride Assistance",
-    listings: [
-      {
-        id: "1",
-        title: "Medical Appointment Transport",
-        description: "Safe and reliable transportation to medical appointments",
-        price: 35,
-        bookings: 67,
-        bookingTrend: 12,
-        status: "ACTIVE",
-        rating: 4.9,
-        reviews: 78,
-        regions: 3,
-        whatsIncluded: [
-          "Door-to-door service",
-          "Wheelchair accessible",
-          "Patient & professional",
-          "Insurance accepted",
-        ],
-      },
-      {
-        id: "2",
-        title: "Airport Transportation",
-        description: "Comfortable rides to and from the airport",
-        price: 55,
-        bookings: 45,
-        bookingTrend: 8,
-        status: "ACTIVE",
-        rating: 4.8,
-        reviews: 52,
-        regions: 3,
-        whatsIncluded: [
-          "Luggage assistance",
-          "Flight tracking",
-          "Professional drivers",
-          "Clean vehicles",
-        ],
-      },
-    ],
-  },
-  "9": {
-    // Companionship Support
-    name: "Caring Companions",
-    category: "Companionship Support",
-    listings: [
-      {
-        id: "1",
-        title: "Daily Companion Care",
-        description: "Professional companionship and light assistance for seniors",
-        price: 25,
-        bookings: 34,
-        bookingTrend: 6,
-        status: "ACTIVE",
-        rating: 4.9,
-        reviews: 45,
-        regions: 2,
-        whatsIncluded: [
-          "Background checked",
-          "Certified caregivers",
-          "Flexible scheduling",
-          "Light housekeeping",
-        ],
-      },
-      {
-        id: "2",
-        title: "Overnight Care",
-        description: "Overnight companionship and supervision for peace of mind",
-        price: 180,
-        bookings: 23,
-        bookingTrend: 10,
-        status: "ACTIVE",
-        rating: 5.0,
-        reviews: 28,
-        regions: 2,
-        whatsIncluded: [
-          "Background checked",
-          "Certified caregivers",
-          "24/7 supervision",
-          "Emergency response",
-        ],
-      },
-    ],
-  },
-};
 
 export function VendorStoreListings() {
   const navigate = useNavigate();
   const { storeId } = useParams();
+  const { user } = useAuth();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
@@ -606,30 +56,87 @@ export function VendorStoreListings() {
 
   const [statusFilter, setStatusFilter] = useState("all");
 
-  // Get store data
-  const storeData = storeDataMap[storeId || "1"] || storeDataMap[" 1"];
-  const [listings, setListings] = useState(storeData.listings);
+  // API states
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [storeData, setStoreData] = useState<{ name: string; category: string; businessName: string }>({
+    name: "Loading...",
+    category: "",
+    businessName: ""
+  });
+  const [listings, setListings] = useState<Listing[]>([]);
 
-  // Load listings from localStorage and merge with mock data
-  useEffect(() => {
-    const savedListings = localStorage.getItem(`store-${storeId}-listings`);
-    if (savedListings) {
-      try {
-        const parsedListings = JSON.parse(savedListings);
-        // Merge saved listings with mock data, prioritizing saved listings
-        const mockListings = storeData.listings;
-        const mergedListings = [...parsedListings, ...mockListings.filter(
-          (mock) => !parsedListings.find((saved: Listing) => saved.id === mock.id)
-        )];
-        setListings(mergedListings);
-      } catch (error) {
-        console.error("Error loading listings from localStorage:", error);
-        setListings(storeData.listings);
+  // Get vendor name
+  const vendorName = user?.profile?.firstName || user?.name?.split(" ")[0] || "Vendor";
+
+  // Fetch store and listings from API
+  const fetchStoreData = useCallback(async () => {
+    if (!storeId) {
+      setError("No store ID provided");
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const storeResponse: any = await api.getStoreById(storeId);
+
+      if (storeResponse.success && storeResponse.data) {
+        const store = storeResponse.data;
+
+        setStoreData({
+          name: store.name,
+          category: store.category,
+          businessName: store.vendor?.businessName || store.name,
+        });
+
+        // Map listings from store response
+        const allListings: Listing[] = [];
+
+        const listingTypes = [
+          { data: store.foodListings },
+          { data: store.beautyProductListings },
+          { data: store.rideAssistanceListings },
+          { data: store.companionshipListings },
+        ];
+
+        for (const { data } of listingTypes) {
+          if (data && Array.isArray(data)) {
+            for (const listing of data) {
+              allListings.push({
+                id: listing.id,
+                title: listing.title || listing.name,
+                description: listing.description || "",
+                price: Number(listing.price || listing.basePrice || 0),
+                bookings: listing.bookingsThisMonth || 0,
+                bookingTrend: listing.bookingTrend || 0,
+                status: listing.status || "ACTIVE",
+                rating: listing.averageRating || 0,
+                reviews: listing.reviewCount || 0,
+                regions: listing.regions?.length || 0,
+                whatsIncluded: listing.features || listing.whatsIncluded || [],
+              });
+            }
+          }
+        }
+
+        setListings(allListings);
+      } else {
+        setError("Failed to load store data");
       }
-    } else {
-      setListings(storeData.listings);
+    } catch (err: any) {
+      console.error("Failed to fetch store data:", err);
+      setError(err.response?.data?.error || "Failed to load store data. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   }, [storeId]);
+
+  useEffect(() => {
+    fetchStoreData();
+  }, [fetchStoreData]);
 
   // Calculate stats
   const activeListings = listings.filter((l) => l.status === "ACTIVE").length;
@@ -653,7 +160,7 @@ export function VendorStoreListings() {
 
   return (
     <div className="min-h-screen bg-white">
-      <VendorTopNav onMenuClick={handleSidebarToggle} vendorName="John Smith" />
+      <VendorTopNav onMenuClick={handleSidebarToggle} vendorName={vendorName} />
       <VendorSidebar
         isOpen={sidebarOpen}
         isCollapsed={sidebarCollapsed}
@@ -675,6 +182,23 @@ export function VendorStoreListings() {
         `}
       >
         <div className="max-w-[1400px] mx-auto">
+          {/* Error Banner */}
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-800">Error</p>
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+              <button
+                className="text-red-500 hover:text-red-700"
+                onClick={() => setError(null)}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* Back Button */}
           <button
             onClick={() => navigate("/vendor/services")}
@@ -693,7 +217,7 @@ export function VendorStoreListings() {
             {/* Profile Info Line */}
             <div className="flex flex-wrap items-center gap-2 text-sm text-[#6B7280] mb-6">
               <span className="hidden sm:inline">
-                <span className="font-medium">Business:</span> {vendorBusinessInfo.businessName}
+                <span className="font-medium">Business:</span> {storeData.businessName}
               </span>
               <span className="hidden sm:inline">•</span>
               <span>

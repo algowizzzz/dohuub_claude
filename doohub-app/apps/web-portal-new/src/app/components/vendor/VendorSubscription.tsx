@@ -1,15 +1,24 @@
-import { useState } from "react";
-import { CreditCard, Check, ArrowRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { CreditCard, Check, ArrowRight, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { api } from "../../../services/api";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+
+interface SubscriptionPlan {
+  name: string;
+  price: number;
+  billing: string;
+  savings: string | null;
+}
 
 type PlanType = "monthly" | "yearly";
 
 export function VendorSubscription() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingPlans, setIsLoadingPlans] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState<PlanType>("monthly");
 
   const [cardDetails, setCardDetails] = useState({
@@ -18,6 +27,48 @@ export function VendorSubscription() {
     expiryDate: "",
     cvv: "",
   });
+
+  // Subscription plans state (fetched from API)
+  const [plans, setPlans] = useState<Record<string, SubscriptionPlan>>({
+    monthly: { name: "Monthly Plan", price: 0, billing: "per month", savings: null },
+    yearly: { name: "Yearly Plan", price: 0, billing: "per year", savings: null },
+  });
+  const [features, setFeatures] = useState<string[]>([]);
+
+  // Fetch subscription plans from API
+  useEffect(() => {
+    const fetchPlans = async () => {
+      setIsLoadingPlans(true);
+      try {
+        const response: any = await api.get('/subscription/plans');
+        const data = response?.data || response;
+        if (data?.monthly) {
+          setPlans({
+            monthly: {
+              name: data.monthly.name || "Monthly Plan",
+              price: data.monthly.price || 0,
+              billing: data.monthly.billing || "per month",
+              savings: data.monthly.savings || null,
+            },
+            yearly: {
+              name: data.yearly?.name || "Yearly Plan",
+              price: data.yearly?.price || 0,
+              billing: data.yearly?.billing || "per year",
+              savings: data.yearly?.savings || null,
+            },
+          });
+        }
+        if (data?.features) {
+          setFeatures(data.features);
+        }
+      } catch (err) {
+        console.error('Failed to fetch subscription plans:', err);
+      } finally {
+        setIsLoadingPlans(false);
+      }
+    };
+    fetchPlans();
+  }, []);
 
   const handleCardNumberChange = (value: string) => {
     // Format card number with spaces every 4 digits
@@ -40,37 +91,23 @@ export function VendorSubscription() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      await api.post('/subscription/subscribe', {
+        plan: selectedPlan,
+        cardDetails: {
+          cardNumber: cardDetails.cardNumber.replace(/\s/g, ''),
+          cardName: cardDetails.cardName,
+          expiryDate: cardDetails.expiryDate,
+          cvv: cardDetails.cvv,
+        },
+      });
       navigate("/vendor/profile-setup");
+    } catch (err) {
+      console.error('Subscription failed:', err);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
-
-  const plans = {
-    monthly: {
-      name: "Monthly Plan",
-      price: 49,
-      billing: "per month",
-      savings: null,
-    },
-    yearly: {
-      name: "Yearly Plan",
-      price: 470,
-      billing: "per year",
-      savings: "Save $118/year",
-    },
-  };
-
-  const features = [
-    "14-day free trial included",
-    "Unlimited service listings",
-    "Real-time order management",
-    "Customer communication tools",
-    "Analytics & insights dashboard",
-    "Payment processing included",
-    "24/7 vendor support",
-  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F9FAFB] to-[#F3F4F6] flex items-center justify-center p-4">

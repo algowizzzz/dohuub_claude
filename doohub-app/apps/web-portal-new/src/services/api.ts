@@ -250,6 +250,29 @@ class ApiService {
     return this.get('/regions');
   }
 
+  // Vendor Dashboard Stats
+  async getVendorDashboardStats() {
+    return this.get('/stats/vendor/dashboard');
+  }
+
+  async getVendorEarnings(period?: 'week' | 'month' | 'quarter' | 'year') {
+    return this.get('/stats/vendor/earnings', { params: { period } });
+  }
+
+  // Vendor Bookings/Orders
+  async getVendorBookings(params?: { status?: string; page?: number; limit?: number }) {
+    return this.get('/bookings/vendor', { params });
+  }
+
+  async updateBookingStatus(id: string, status: 'ACCEPTED' | 'IN_PROGRESS' | 'COMPLETED' | 'DECLINED' | 'CANCELLED', note?: string) {
+    return this.put(`/bookings/${id}/status`, { status, note });
+  }
+
+  // Store Listings - fetch listings for a specific store
+  async getStoreListings(storeId: string, params?: { type?: string; status?: string }) {
+    return this.get(`/stores/${storeId}`, { params });
+  }
+
   // =====================
   // Listing CRUD Operations
   // =====================
@@ -423,6 +446,29 @@ class ApiService {
     const endpoint = endpoints[type];
     if (!endpoint) throw new Error(`Unknown listing type: ${type}`);
     return this.delete(`${endpoint}/${id}`);
+  }
+
+  // Admin - Reports/Moderation endpoints
+  async getReportedListings(params?: { status?: string; page?: number; limit?: number }) {
+    return this.get('/reports', { params });
+  }
+
+  async resolveReport(reportId: string, status: 'RESOLVED' | 'DISMISSED', resolution?: string) {
+    return this.put(`/reports/${reportId}`, { status, resolution });
+  }
+
+  // Admin - Customer suspend/unsuspend
+  async updateCustomerStatus(customerId: string, status: 'ACTIVE' | 'SUSPENDED') {
+    return this.patch(`/admin/customers/${customerId}/status`, { status });
+  }
+
+  // Admin - Vendor suspend/unsuspend
+  async suspendVendor(vendorId: string) {
+    return this.patch(`/admin/vendors/${vendorId}/status`, { status: 'SUSPENDED' });
+  }
+
+  async unsuspendVendor(vendorId: string) {
+    return this.patch(`/admin/vendors/${vendorId}/status`, { status: 'APPROVED' });
   }
 }
 

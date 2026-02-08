@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ArrowLeft, X, Search, Globe } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { ArrowLeft, X, Search, Loader2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Checkbox } from "../ui/checkbox";
@@ -10,6 +10,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "../ui/dialog";
+import { api } from "../../../services/api";
 
 interface Country {
   code: string;
@@ -29,99 +30,19 @@ interface CountryRegionModalProps {
   onAddRegions: (regions: { countryCode: string; countryName: string; countryFlag: string; regionId: string; regionName: string }[]) => void;
 }
 
-const COUNTRIES: Country[] = [
-  { code: "US", name: "United States", flag: "🇺🇸" },
-  { code: "CA", name: "Canada", flag: "🇨🇦" },
-  { code: "AU", name: "Australia", flag: "🇦🇺" },
-  { code: "BR", name: "Brazil", flag: "🇧🇷" },
-  { code: "FR", name: "France", flag: "🇫🇷" },
-  { code: "DE", name: "Germany", flag: "🇩🇪" },
-  { code: "IN", name: "India", flag: "🇮🇳" },
-  { code: "IT", name: "Italy", flag: "🇮🇹" },
-  { code: "JP", name: "Japan", flag: "🇯🇵" },
-  { code: "MX", name: "Mexico", flag: "🇲🇽" },
-  { code: "NL", name: "Netherlands", flag: "🇳🇱" },
-  { code: "ES", name: "Spain", flag: "🇪🇸" },
-  { code: "GB", name: "United Kingdom", flag: "🇬🇧" },
-];
-
-const REGIONS_BY_COUNTRY: Record<string, { major: Region[]; all: Region[] }> = {
-  US: {
-    major: [
-      { id: "us-1", name: "New York, NY", subRegion: "Northeast" },
-      { id: "us-2", name: "Los Angeles, CA", subRegion: "West Coast" },
-      { id: "us-3", name: "Chicago, IL", subRegion: "Midwest" },
-      { id: "us-4", name: "Houston, TX", subRegion: "South" },
-    ],
-    all: [
-      { id: "us-1", name: "New York, NY", subRegion: "Northeast" },
-      { id: "us-2", name: "Los Angeles, CA", subRegion: "West Coast" },
-      { id: "us-3", name: "Chicago, IL", subRegion: "Midwest" },
-      { id: "us-4", name: "Houston, TX", subRegion: "South" },
-      { id: "us-5", name: "Atlanta, GA", subRegion: "South" },
-      { id: "us-6", name: "Austin, TX", subRegion: "South" },
-      { id: "us-7", name: "Boston, MA", subRegion: "Northeast" },
-      { id: "us-8", name: "Dallas, TX", subRegion: "South" },
-      { id: "us-9", name: "Denver, CO", subRegion: "West" },
-      { id: "us-10", name: "Miami, FL", subRegion: "South" },
-      { id: "us-11", name: "Phoenix, AZ", subRegion: "Southwest" },
-      { id: "us-12", name: "San Diego, CA", subRegion: "West Coast" },
-      { id: "us-13", name: "San Francisco, CA", subRegion: "West Coast" },
-      { id: "us-14", name: "Seattle, WA", subRegion: "Northwest" },
-    ],
-  },
-  CA: {
-    major: [
-      { id: "ca-1", name: "Toronto, ON", subRegion: "Ontario" },
-      { id: "ca-2", name: "Montreal, QC", subRegion: "Quebec" },
-      { id: "ca-3", name: "Vancouver, BC", subRegion: "British Columbia" },
-      { id: "ca-4", name: "Calgary, AB", subRegion: "Alberta" },
-    ],
-    all: [
-      { id: "ca-1", name: "Toronto, ON", subRegion: "Ontario" },
-      { id: "ca-2", name: "Montreal, QC", subRegion: "Quebec" },
-      { id: "ca-3", name: "Vancouver, BC", subRegion: "British Columbia" },
-      { id: "ca-4", name: "Calgary, AB", subRegion: "Alberta" },
-      { id: "ca-5", name: "Ottawa, ON", subRegion: "Ontario" },
-      { id: "ca-6", name: "Edmonton, AB", subRegion: "Alberta" },
-      { id: "ca-7", name: "Halifax, NS", subRegion: "Nova Scotia" },
-      { id: "ca-8", name: "Winnipeg, MB", subRegion: "Manitoba" },
-    ],
-  },
-  GB: {
-    major: [
-      { id: "gb-1", name: "London", subRegion: "England" },
-      { id: "gb-2", name: "Manchester", subRegion: "England" },
-      { id: "gb-3", name: "Birmingham", subRegion: "England" },
-      { id: "gb-4", name: "Edinburgh", subRegion: "Scotland" },
-    ],
-    all: [
-      { id: "gb-1", name: "London", subRegion: "England" },
-      { id: "gb-2", name: "Manchester", subRegion: "England" },
-      { id: "gb-3", name: "Birmingham", subRegion: "England" },
-      { id: "gb-4", name: "Edinburgh", subRegion: "Scotland" },
-      { id: "gb-5", name: "Glasgow", subRegion: "Scotland" },
-      { id: "gb-6", name: "Liverpool", subRegion: "England" },
-      { id: "gb-7", name: "Cardiff", subRegion: "Wales" },
-      { id: "gb-8", name: "Belfast", subRegion: "Northern Ireland" },
-    ],
-  },
-  AU: {
-    major: [
-      { id: "au-1", name: "Sydney", subRegion: "New South Wales" },
-      { id: "au-2", name: "Melbourne", subRegion: "Victoria" },
-      { id: "au-3", name: "Brisbane", subRegion: "Queensland" },
-      { id: "au-4", name: "Perth", subRegion: "Western Australia" },
-    ],
-    all: [
-      { id: "au-1", name: "Sydney", subRegion: "New South Wales" },
-      { id: "au-2", name: "Melbourne", subRegion: "Victoria" },
-      { id: "au-3", name: "Brisbane", subRegion: "Queensland" },
-      { id: "au-4", name: "Perth", subRegion: "Western Australia" },
-      { id: "au-5", name: "Adelaide", subRegion: "South Australia" },
-      { id: "au-6", name: "Gold Coast", subRegion: "Queensland" },
-    ],
-  },
+// Country flag emoji map
+const COUNTRY_FLAGS: Record<string, string> = {
+  US: "🇺🇸", CA: "🇨🇦", AU: "🇦🇺", BR: "🇧🇷", FR: "🇫🇷",
+  DE: "🇩🇪", IN: "🇮🇳", IT: "🇮🇹", JP: "🇯🇵", MX: "🇲🇽",
+  NL: "🇳🇱", ES: "🇪🇸", GB: "🇬🇧", CN: "🇨🇳", KR: "🇰🇷",
+  RU: "🇷🇺", ZA: "🇿🇦", AE: "🇦🇪", SG: "🇸🇬", NZ: "🇳🇿",
+  AR: "🇦🇷", CL: "🇨🇱", CO: "🇨🇴", PH: "🇵🇭", TH: "🇹🇭",
+  VN: "🇻🇳", ID: "🇮🇩", MY: "🇲🇾", PK: "🇵🇰", BD: "🇧🇩",
+  NG: "🇳🇬", EG: "🇪🇬", KE: "🇰🇪", PL: "🇵🇱", SE: "🇸🇪",
+  NO: "🇳🇴", DK: "🇩🇰", FI: "🇫🇮", CH: "🇨🇭", AT: "🇦🇹",
+  BE: "🇧🇪", PT: "🇵🇹", GR: "🇬🇷", IE: "🇮🇪", CZ: "🇨🇿",
+  HU: "🇭🇺", RO: "🇷🇴", UA: "🇺🇦", IL: "🇮🇱", SA: "🇸🇦",
+  TR: "🇹🇷", HK: "🇭🇰", TW: "🇹🇼", PH: "🇵🇭",
 };
 
 export function CountryRegionModal({ open, onClose, onAddRegions }: CountryRegionModalProps) {
@@ -131,12 +52,117 @@ export function CountryRegionModal({ open, onClose, onAddRegions }: CountryRegio
   const [regionSearch, setRegionSearch] = useState("");
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
 
+  // Data state
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [regions, setRegions] = useState<{ major: Region[]; all: Region[] }>({ major: [], all: [] });
+  const [isLoadingCountries, setIsLoadingCountries] = useState(true);
+  const [isLoadingRegions, setIsLoadingRegions] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch countries on mount
+  const fetchCountries = useCallback(async () => {
+    setIsLoadingCountries(true);
+    setError(null);
+    try {
+      const response: any = await api.get('/regions/grouped');
+      const data = response?.data || response;
+
+      // Extract unique countries from grouped data
+      const countryList: Country[] = [];
+      if (Array.isArray(data)) {
+        data.forEach((group: any) => {
+          const code = group.countryCode || group.country?.code;
+          const name = group.countryName || group.country?.name || group.country;
+          if (code && name && !countryList.find(c => c.code === code)) {
+            countryList.push({
+              code,
+              name,
+              flag: COUNTRY_FLAGS[code] || "🏳️",
+            });
+          }
+        });
+      } else if (typeof data === 'object') {
+        // Handle { countryCode: [regions] } format
+        Object.keys(data).forEach(code => {
+          const countryData = data[code];
+          const name = countryData.name || code;
+          countryList.push({
+            code,
+            name,
+            flag: COUNTRY_FLAGS[code] || "🏳️",
+          });
+        });
+      }
+
+      // Sort alphabetically
+      countryList.sort((a, b) => a.name.localeCompare(b.name));
+      setCountries(countryList);
+    } catch (err: any) {
+      console.error('Failed to fetch countries:', err);
+      setError('Failed to load countries');
+    } finally {
+      setIsLoadingCountries(false);
+    }
+  }, []);
+
+  // Fetch regions for selected country
+  const fetchRegions = useCallback(async (countryCode: string) => {
+    setIsLoadingRegions(true);
+    setError(null);
+    try {
+      const response: any = await api.get(`/regions?country=${countryCode}`);
+      const data = response?.data || response;
+
+      const allRegions: Region[] = [];
+      if (Array.isArray(data)) {
+        data.forEach((r: any) => {
+          allRegions.push({
+            id: r.id,
+            name: r.name || r.city || r.region,
+            subRegion: r.subRegion || r.state || r.province || "",
+          });
+        });
+      }
+
+      // Sort alphabetically
+      allRegions.sort((a, b) => a.name.localeCompare(b.name));
+
+      // Major cities are first 4 (or marked as major)
+      const major = allRegions.filter(r => (r as any).isMajor).slice(0, 4);
+      if (major.length === 0) {
+        // Take first 4 as major if none marked
+        setRegions({ major: allRegions.slice(0, 4), all: allRegions });
+      } else {
+        setRegions({ major, all: allRegions });
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch regions:', err);
+      setError('Failed to load regions');
+      setRegions({ major: [], all: [] });
+    } finally {
+      setIsLoadingRegions(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      fetchCountries();
+    }
+  }, [open, fetchCountries]);
+
+  useEffect(() => {
+    if (selectedCountry) {
+      fetchRegions(selectedCountry.code);
+    }
+  }, [selectedCountry, fetchRegions]);
+
   const handleClose = () => {
     setStep(1);
     setSelectedCountry(null);
     setCountrySearch("");
     setRegionSearch("");
     setSelectedRegions([]);
+    setRegions({ major: [], all: [] });
     onClose();
   };
 
@@ -151,14 +177,14 @@ export function CountryRegionModal({ open, onClose, onAddRegions }: CountryRegio
     setSelectedCountry(null);
     setRegionSearch("");
     setSelectedRegions([]);
+    setRegions({ major: [], all: [] });
   };
 
   const handleAddSelected = () => {
     if (!selectedCountry) return;
-    
-    const regionsData = REGIONS_BY_COUNTRY[selectedCountry.code]?.all || [];
+
     const regionsToAdd = selectedRegions.map(regionId => {
-      const region = regionsData.find(r => r.id === regionId);
+      const region = regions.all.find(r => r.id === regionId);
       return {
         countryCode: selectedCountry.code,
         countryName: selectedCountry.name,
@@ -172,19 +198,18 @@ export function CountryRegionModal({ open, onClose, onAddRegions }: CountryRegio
     handleClose();
   };
 
-  const filteredCountries = COUNTRIES.filter(country =>
+  const filteredCountries = countries.filter(country =>
     country.name.toLowerCase().includes(countrySearch.toLowerCase())
   );
 
-  const currentRegions = selectedCountry ? REGIONS_BY_COUNTRY[selectedCountry.code] : null;
-  const filteredMajorRegions = currentRegions?.major.filter(region =>
+  const filteredMajorRegions = regions.major.filter(region =>
     region.name.toLowerCase().includes(regionSearch.toLowerCase()) ||
     region.subRegion.toLowerCase().includes(regionSearch.toLowerCase())
-  ) || [];
-  const filteredAllRegions = currentRegions?.all.filter(region =>
+  );
+  const filteredAllRegions = regions.all.filter(region =>
     region.name.toLowerCase().includes(regionSearch.toLowerCase()) ||
     region.subRegion.toLowerCase().includes(regionSearch.toLowerCase())
-  ) || [];
+  );
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -207,6 +232,13 @@ export function CountryRegionModal({ open, onClose, onAddRegions }: CountryRegio
         </DialogHeader>
 
         <div className="p-4 sm:p-8 overflow-y-auto max-h-[calc(90vh-120px)] sm:max-h-[600px]">
+          {/* Error Banner */}
+          {error && (
+            <div className="mb-4 p-3 rounded-lg bg-[#FEE2E2] border border-[#DC2626] text-[#991B1B] text-sm">
+              {error}
+            </div>
+          )}
+
           {step === 1 ? (
             // Step 1: Select Country
             <div className="space-y-6">
@@ -229,51 +261,64 @@ export function CountryRegionModal({ open, onClose, onAddRegions }: CountryRegio
                 />
               </div>
 
-              <div>
-                <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wider mb-3">
-                  Popular Countries
-                </p>
-                <div className="space-y-2">
-                  {filteredCountries.slice(0, 2).map((country) => (
-                    <button
-                      key={country.code}
-                      onClick={() => handleCountrySelect(country)}
-                      className="w-full h-14 flex items-center justify-between px-4 border border-[#E5E7EB] rounded-lg hover:border-[#1F2937] hover:bg-[#F8F9FA] transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-[32px]">{country.flag}</span>
-                        <span className="text-base font-semibold text-[#1F2937]">
-                          {country.name}
-                        </span>
-                      </div>
-                      <ArrowLeft className="w-5 h-5 text-[#9CA3AF] rotate-180" />
-                    </button>
-                  ))}
+              {isLoadingCountries ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-[#6B7280] animate-spin" />
                 </div>
-              </div>
+              ) : (
+                <>
+                  <div>
+                    <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wider mb-3">
+                      Popular Countries
+                    </p>
+                    <div className="space-y-2">
+                      {filteredCountries.slice(0, 2).map((country) => (
+                        <button
+                          key={country.code}
+                          onClick={() => handleCountrySelect(country)}
+                          className="w-full h-14 flex items-center justify-between px-4 border border-[#E5E7EB] rounded-lg hover:border-[#1F2937] hover:bg-[#F8F9FA] transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-[32px]">{country.flag}</span>
+                            <span className="text-base font-semibold text-[#1F2937]">
+                              {country.name}
+                            </span>
+                          </div>
+                          <ArrowLeft className="w-5 h-5 text-[#9CA3AF] rotate-180" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              <div>
-                <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wider mb-3">
-                  All Countries (Alphabetical)
-                </p>
-                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
-                  {filteredCountries.map((country) => (
-                    <button
-                      key={country.code}
-                      onClick={() => handleCountrySelect(country)}
-                      className="w-full h-14 flex items-center justify-between px-4 border border-[#E5E7EB] rounded-lg hover:border-[#1F2937] hover:bg-[#F8F9FA] transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-[32px]">{country.flag}</span>
-                        <span className="text-base font-semibold text-[#1F2937]">
-                          {country.name}
-                        </span>
-                      </div>
-                      <ArrowLeft className="w-5 h-5 text-[#9CA3AF] rotate-180" />
-                    </button>
-                  ))}
-                </div>
-              </div>
+                  <div>
+                    <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wider mb-3">
+                      All Countries (Alphabetical)
+                    </p>
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                      {filteredCountries.map((country) => (
+                        <button
+                          key={country.code}
+                          onClick={() => handleCountrySelect(country)}
+                          className="w-full h-14 flex items-center justify-between px-4 border border-[#E5E7EB] rounded-lg hover:border-[#1F2937] hover:bg-[#F8F9FA] transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-[32px]">{country.flag}</span>
+                            <span className="text-base font-semibold text-[#1F2937]">
+                              {country.name}
+                            </span>
+                          </div>
+                          <ArrowLeft className="w-5 h-5 text-[#9CA3AF] rotate-180" />
+                        </button>
+                      ))}
+                      {filteredCountries.length === 0 && (
+                        <p className="text-center py-8 text-[#6B7280]">
+                          No countries found
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="pt-6 flex justify-center">
                 <Button
@@ -315,106 +360,127 @@ export function CountryRegionModal({ open, onClose, onAddRegions }: CountryRegio
                 />
               </div>
 
-              <div>
-                <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wider mb-3">
-                  Major Cities
-                </p>
-                <div className="space-y-2">
-                  {filteredMajorRegions.map((region) => {
-                    const isSelected = selectedRegions.includes(region.id);
-                    return (
-                      <div
-                        key={region.id}
-                        onClick={() => {
-                          if (isSelected) {
-                            setSelectedRegions(selectedRegions.filter(id => id !== region.id));
-                          } else {
-                            setSelectedRegions([...selectedRegions, region.id]);
-                          }
-                        }}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            if (isSelected) {
-                              setSelectedRegions(selectedRegions.filter(id => id !== region.id));
-                            } else {
-                              setSelectedRegions([...selectedRegions, region.id]);
-                            }
-                          }
-                        }}
-                        className={`w-full h-14 flex items-center gap-3 px-4 border rounded-lg transition-all cursor-pointer ${
-                          isSelected
-                            ? 'border-[#10B981] bg-[#D1FAE5]'
-                            : 'border-[#E5E7EB] hover:border-[#1F2937] hover:bg-[#F8F9FA]'
-                        }`}
-                      >
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => {}}
-                          className="w-5 h-5 pointer-events-none"
-                        />
-                        <span className="text-base font-semibold text-[#1F2937]">
-                          {region.name}
-                        </span>
-                        <span className="text-[13px] text-[#6B7280]">
-                          ({region.subRegion})
-                        </span>
-                      </div>
-                    );
-                  })}
+              {isLoadingRegions ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-[#6B7280] animate-spin" />
                 </div>
-              </div>
+              ) : regions.all.length === 0 ? (
+                <p className="text-center py-8 text-[#6B7280]">
+                  No regions available for this country
+                </p>
+              ) : (
+                <>
+                  {filteredMajorRegions.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wider mb-3">
+                        Major Cities
+                      </p>
+                      <div className="space-y-2">
+                        {filteredMajorRegions.map((region) => {
+                          const isSelected = selectedRegions.includes(region.id);
+                          return (
+                            <div
+                              key={region.id}
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSelectedRegions(selectedRegions.filter(id => id !== region.id));
+                                } else {
+                                  setSelectedRegions([...selectedRegions, region.id]);
+                                }
+                              }}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  if (isSelected) {
+                                    setSelectedRegions(selectedRegions.filter(id => id !== region.id));
+                                  } else {
+                                    setSelectedRegions([...selectedRegions, region.id]);
+                                  }
+                                }
+                              }}
+                              className={`w-full h-14 flex items-center gap-3 px-4 border rounded-lg transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'border-[#10B981] bg-[#D1FAE5]'
+                                  : 'border-[#E5E7EB] hover:border-[#1F2937] hover:bg-[#F8F9FA]'
+                              }`}
+                            >
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => {}}
+                                className="w-5 h-5 pointer-events-none"
+                              />
+                              <span className="text-base font-semibold text-[#1F2937]">
+                                {region.name}
+                              </span>
+                              {region.subRegion && (
+                                <span className="text-[13px] text-[#6B7280]">
+                                  ({region.subRegion})
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
-              <div>
-                <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wider mb-3">
-                  All Regions (Alphabetical)
-                </p>
-                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
-                  {filteredAllRegions.map((region) => {
-                    const isSelected = selectedRegions.includes(region.id);
-                    return (
-                      <div
-                        key={region.id}
-                        onClick={() => {
-                          if (isSelected) {
-                            setSelectedRegions(selectedRegions.filter(id => id !== region.id));
-                          } else {
-                            setSelectedRegions([...selectedRegions, region.id]);
-                          }
-                        }}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            if (isSelected) {
-                              setSelectedRegions(selectedRegions.filter(id => id !== region.id));
-                            } else {
-                              setSelectedRegions([...selectedRegions, region.id]);
-                            }
-                          }
-                        }}
-                        className={`w-full h-14 flex items-center gap-3 px-4 border rounded-lg transition-all cursor-pointer ${
-                          isSelected
-                            ? 'border-[#10B981] bg-[#D1FAE5]'
-                            : 'border-[#E5E7EB] hover:border-[#1F2937] hover:bg-[#F8F9FA]'
-                        }`}
-                      >
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => {}}
-                          className="w-5 h-5 pointer-events-none"
-                        />
-                        <span className="text-base font-semibold text-[#1F2937]">
-                          {region.name}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+                  <div>
+                    <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wider mb-3">
+                      All Regions (Alphabetical)
+                    </p>
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                      {filteredAllRegions.map((region) => {
+                        const isSelected = selectedRegions.includes(region.id);
+                        return (
+                          <div
+                            key={region.id}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedRegions(selectedRegions.filter(id => id !== region.id));
+                              } else {
+                                setSelectedRegions([...selectedRegions, region.id]);
+                              }
+                            }}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                if (isSelected) {
+                                  setSelectedRegions(selectedRegions.filter(id => id !== region.id));
+                                } else {
+                                  setSelectedRegions([...selectedRegions, region.id]);
+                                }
+                              }
+                            }}
+                            className={`w-full h-14 flex items-center gap-3 px-4 border rounded-lg transition-all cursor-pointer ${
+                              isSelected
+                                ? 'border-[#10B981] bg-[#D1FAE5]'
+                                : 'border-[#E5E7EB] hover:border-[#1F2937] hover:bg-[#F8F9FA]'
+                            }`}
+                          >
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => {}}
+                              className="w-5 h-5 pointer-events-none"
+                            />
+                            <span className="text-base font-semibold text-[#1F2937]">
+                              {region.name}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {filteredAllRegions.length === 0 && (
+                        <p className="text-center py-8 text-[#6B7280]">
+                          No regions found
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="pt-4">
                 <p className="text-sm text-[#6B7280] text-center mb-6">

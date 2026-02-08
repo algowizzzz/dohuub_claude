@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Star,
@@ -11,7 +11,9 @@ import {
   CheckCircle,
   Image as ImageIcon,
   ThumbsUp,
+  Loader2,
 } from "lucide-react";
+import { api } from "../../../services/api";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import {
@@ -56,54 +58,6 @@ interface Review {
   status: "published" | "pending_response" | "flagged" | "hidden" | "removed";
   createdAt: string;
 }
-
-// Mock data
-const mockReviews: Review[] = [
-  {
-    id: "REV001",
-    rating: 5,
-    customerName: "Sarah J.",
-    customerId: "C123",
-    verified: true,
-    serviceName: "Deep Cleaning Service",
-    vendorName: "CleanCo Services",
-    vendorId: "V001",
-    bookingId: "BK-12789",
-    bookingDate: "2026-01-03",
-    reviewText:
-      "Excellent service! The team was professional and thorough. My apartment has never been cleaner. Highly recommend for anyone looking for quality cleaning.",
-    photos: ["photo1.jpg", "photo2.jpg"],
-    vendorResponse: {
-      text: "Thank you Sarah! We're thrilled you're happy with our service. Looking forward to serving you again!",
-      respondedAt: "2026-01-04",
-    },
-    helpfulCount: 12,
-    flagged: false,
-    status: "published",
-    createdAt: "2026-01-04",
-  },
-  {
-    id: "REV002",
-    rating: 2,
-    customerName: "John D.",
-    customerId: "C456",
-    verified: true,
-    serviceName: "Premium House Cleaning",
-    vendorName: "CleanCo Services",
-    vendorId: "V001",
-    bookingId: "BK-12745",
-    bookingDate: "2026-01-02",
-    reviewText:
-      "Service was rushed. They left after 90 minutes when 3 hours was promised. Several areas were not cleaned properly. Disappointed with the quality.",
-    photos: ["uncleaned.jpg"],
-    helpfulCount: 3,
-    flagged: true,
-    flagReason: "Dispute - Vendor claims different details",
-    flaggedBy: "Vendor (CleanCo Services)",
-    status: "flagged",
-    createdAt: "2026-01-03",
-  },
-];
 
 function StarRating({ rating }: { rating: number }) {
   return (
@@ -366,7 +320,49 @@ export function AllReviews() {
     }
   };
 
-  const [reviews] = useState<Review[]>(mockReviews);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch reviews from API
+  const fetchReviews = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response: any = await api.get('/admin/reviews');
+      const reviewsData = Array.isArray(response) ? response : response?.data || [];
+      setReviews(reviewsData.map((r: any) => ({
+        id: r.id,
+        rating: r.rating || 0,
+        customerName: r.customerName || r.customer?.name || 'Anonymous',
+        customerId: r.customerId || r.customer?.id || '',
+        verified: r.verified || r.customer?.verified || false,
+        serviceName: r.serviceName || r.listing?.title || 'Service',
+        vendorName: r.vendorName || r.vendor?.businessName || 'Vendor',
+        vendorId: r.vendorId || r.vendor?.id || '',
+        bookingId: r.bookingId || r.orderId || '',
+        bookingDate: r.bookingDate || r.order?.scheduledDate || '',
+        reviewText: r.reviewText || r.text || r.content || '',
+        photos: r.photos || [],
+        vendorResponse: r.vendorResponse,
+        helpfulCount: r.helpfulCount || 0,
+        flagged: r.flagged || false,
+        flagReason: r.flagReason,
+        flaggedBy: r.flaggedBy,
+        status: r.status || 'published',
+        createdAt: r.createdAt || new Date().toISOString(),
+      })));
+    } catch (err: any) {
+      console.error('Failed to fetch reviews:', err);
+      setError(err?.response?.data?.error || 'Failed to load reviews. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchReviews();
+  }, [fetchReviews]);
   const [searchQuery, setSearchQuery] = useState("");
   const [ratingFilter, setRatingFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -573,8 +569,28 @@ export function AllReviews() {
             </Button>
           </div>
 
+          {/* Error Banner */}
+          {error && (
+            <div className="mb-4 p-4 rounded-lg bg-[#FEE2E2] border border-[#DC2626] text-[#991B1B] flex items-center justify-between">
+              <span className="text-sm font-medium">{error}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchReviews}
+                className="ml-4 border-[#DC2626] text-[#DC2626] hover:bg-[#FEE2E2]"
+              >
+                Try Again
+              </Button>
+            </div>
+          )}
+
           {/* Review Cards */}
-          {sortedReviews.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <Loader2 className="w-12 h-12 text-[#6B7280] animate-spin mb-4" />
+              <p className="text-[15px] text-[#6B7280]">Loading reviews...</p>
+            </div>
+          ) : sortedReviews.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
               <div className="w-[120px] h-[120px] rounded-full bg-[#F3F4F6] flex items-center justify-center mb-6">
                 <Star className="w-16 h-16 text-[#9CA3AF]" />

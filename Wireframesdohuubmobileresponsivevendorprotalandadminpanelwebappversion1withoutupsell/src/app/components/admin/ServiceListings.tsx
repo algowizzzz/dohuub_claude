@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { api } from "../../../services/api";
 import {
   ArrowLeft,
   Plus,
@@ -45,10 +46,7 @@ interface ServiceListing {
   status: "published" | "draft";
 }
 
-const mockListings: ServiceListing[] = [
-  {
-    id: "1",
-    name: "Deep Cleaning Service",
+function ServiceListingCard({ listing }: { listing: ServiceListing }) {
     shortDescription: "Complete top-to-bottom home cleaning for a spotless living space",
     longDescription: "Our comprehensive deep cleaning service includes detailed cleaning of all rooms, bathrooms, kitchen, and common areas. We use professional-grade equipment and eco-friendly products to ensure your home is not just clean, but healthy and safe for your family.",
     basePrice: 150,
@@ -1055,10 +1053,6 @@ const mockCompanionshipSupportListings: ServiceListing[] = [
     rating: 4.9,
     reviews: 112,
     status: "published"
-  },
-];
-
-function ServiceListingCard({ listing }: { listing: ServiceListing }) {
   const navigate = useNavigate();
   const { profileId } = useParams();
   const [isActive, setIsActive] = useState(listing.isActive);
@@ -1252,6 +1246,10 @@ export function ServiceListings() {
   const { profileId } = useParams();
   const [filter, setFilter] = useState("all");
   const [showInactive, setShowInactive] = useState(false);
+  const [listings, setListings] = useState<ServiceListing[]>([]);
+  const [profileInfo, setProfileInfo] = useState<{ name: string; category: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1267,58 +1265,60 @@ export function ServiceListings() {
     }
   };
 
-  // Determine which listings and profile data to show based on profileId
-  // Profile IDs: "1", "2", "3" are Cleaning Services
-  // Profile IDs: "4", "5", "6" are Handyman Services
-  // Profile IDs: "10", "11", "12" are Beauty Services
-  // Profile IDs: "13", "14", "15" are Beauty Products
-  // Profile IDs: "7", "8", "9" are Grocery
-  // Profile IDs: "19", "20", "21" are Food
-  // Profile IDs: "22", "23", "24" are Rental Properties
-  // Profile IDs: "25", "26", "27" are Ride Assistance
-  const isCleaningProfile = profileId === "1" || profileId === "2" || profileId === "3";
-  const isHandymanProfile = profileId === "4" || profileId === "5" || profileId === "6";
-  const isBeautyServicesProfile = profileId === "10" || profileId === "11" || profileId === "12";
-  const isBeautyProductsProfile = profileId === "13" || profileId === "14" || profileId === "15";
-  const isGroceryProfile = profileId === "7" || profileId === "8" || profileId === "9";
-  const isFoodProfile = profileId === "19" || profileId === "20" || profileId === "21";
-  const isRentalPropertiesProfile = profileId === "22" || profileId === "23" || profileId === "24";
-  const isRideAssistanceProfile = profileId === "25" || profileId === "26" || profileId === "27";
-  const isCompanionshipSupportProfile = profileId === "32" || profileId === "33" || profileId === "34";
-  
-  const currentListings = isHandymanProfile
-    ? mockHandymanListings
-    : isBeautyServicesProfile
-    ? mockBeautyServicesListings
-    : isBeautyProductsProfile
-    ? mockBeautyProductsListings
-    : isGroceryProfile
-    ? mockGroceryProductListings
-    : isFoodProfile
-    ? mockFoodProductListings
-    : isRentalPropertiesProfile
-    ? mockRentalPropertiesListings
-    : isRideAssistanceProfile
-    ? mockRideAssistanceListings.filter(listing => {
-        // Profile 25 (CareWheels) -> Listing 1
-        // Profile 26 (Senior Care Rides) -> Listing 2
-        // Profile 27 (SafeTransit Solutions) -> Listing 3
-        if (profileId === "25") return listing.id === "1";
-        if (profileId === "26") return listing.id === "2";
-        if (profileId === "27") return listing.id === "3";
-        return false;
-      })
-    : isCompanionshipSupportProfile
-    ? mockCompanionshipSupportListings.filter(listing => {
-        // Profile 32 (Caring Companions) -> Listing 1
-        // Profile 33 (Senior Care Network) -> Listing 2
-        // Profile 34 (Compassionate Care) -> Listing 3
-        if (profileId === "32") return listing.id === "1";
-        if (profileId === "33") return listing.id === "2";
-        if (profileId === "34") return listing.id === "3";
-        return false;
-      })
-    : mockListings;
+  // Fetch listings from API
+  useEffect(() => {
+    const fetchListings = async () => {
+      if (!profileId) return;
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Fetch profile info and listings
+        const profileData: any = await api.getMichelleProfileById(profileId);
+        setProfileInfo({
+          name: profileData.businessName || profileData.name,
+          category: profileData.category,
+        });
+
+        const listingsData: any = await api.getMichelleProfileListings(profileId);
+        const mappedListings: ServiceListing[] = (listingsData.listings || listingsData || []).map((listing: any) => ({
+          id: listing.id,
+          name: listing.name || listing.title,
+          shortDescription: listing.shortDescription || listing.description || "",
+          longDescription: listing.longDescription || listing.detailedDescription || "",
+          basePrice: listing.basePrice || listing.price || 0,
+          maxPrice: listing.maxPrice,
+          pricingType: listing.pricingType || "fixed",
+          duration: listing.duration,
+          thumbnail: listing.thumbnail,
+          imageGallery: listing.imageGallery || listing.images || [],
+          whatsIncluded: listing.whatsIncluded || listing.features || [],
+          vehicleTypes: listing.vehicleTypes,
+          specialFeatures: listing.specialFeatures,
+          bookings: listing.bookings || listing.totalBookings || 0,
+          bookingTrend: listing.bookingTrend || 0,
+          isActive: listing.isActive !== false,
+          regions: listing.regions || [],
+          rating: listing.rating || listing.averageRating,
+          reviews: listing.reviews || listing.reviewCount,
+          status: listing.status || "published",
+        }));
+
+        setListings(mappedListings);
+      } catch (err: any) {
+        console.error("Failed to fetch listings:", err);
+        setError(err.response?.data?.error || "Failed to load listings. Please try again later.");
+        setListings([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchListings();
+  }, [profileId]);
+
+  const currentListings = listings;
   
   // Mock profile data
   const getProfileInfo = () => {

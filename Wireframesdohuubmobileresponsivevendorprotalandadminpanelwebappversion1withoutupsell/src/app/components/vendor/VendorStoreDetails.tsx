@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { VendorSidebar } from "./VendorSidebar";
 import { VendorTopNav } from "./VendorTopNav";
-import { vendorBusinessInfo, storeDataMap } from "../../data/vendorBusinessData";
+import { api } from "../../../services/api";
 
 interface StoreDetails {
   id: string;
@@ -51,33 +51,61 @@ export function VendorStoreDetails() {
 
   const [emailCopied, setEmailCopied] = useState(false);
   const [phoneCopied, setPhoneCopied] = useState(false);
+  const [storeDetails, setStoreDetails] = useState<StoreDetails | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const store = storeDataMap[storeId || "1"] || storeDataMap["1"];
+  // Fetch store details from API
+  useEffect(() => {
+    const fetchStoreDetails = async () => {
+      if (!storeId) return;
+      
+      try {
+        setIsLoading(true);
+        setError(null);
+        
+        // Fetch store details
+        const storeData: any = await api.getStoreById(storeId);
+        // Fetch vendor business info
+        const vendorInfo: any = await api.getVendorSettings();
+        // Fetch store regions
+        const regionsData: any = await api.get(`/stores/${storeId}/regions`);
+        
+        const mappedStoreDetails: StoreDetails = {
+          id: storeData.id || storeId,
+          businessName: vendorInfo?.businessName || storeData.businessName || "Loading...",
+          storeName: storeData.name || storeData.businessName || "Loading...",
+          category: storeData.category || "General",
+          status: (storeData.status || "active").toLowerCase() as "active" | "inactive",
+          owner: vendorInfo?.ownerName || vendorInfo?.name || "Loading...",
+          email: vendorInfo?.email || storeData.email || "",
+          phone: vendorInfo?.phone || storeData.phone || "",
+          taxId: vendorInfo?.taxId || "",
+          businessAddress: vendorInfo?.businessAddress || storeData.address || "",
+          businessType: vendorInfo?.businessType || "",
+          regions: regionsData?.regions?.map((r: any) => ({
+            name: r.name || r.regionName,
+            zipcodes: r.zipcodes?.length || 0,
+          })) || [],
+          rating: storeData.averageRating || storeData.rating || 0,
+          reviews: storeData.reviewCount || storeData.reviews || 0,
+          totalRevenue: storeData.totalRevenue || 0,
+          totalBookings: storeData.totalBookings || storeData.bookingCount || 0,
+          subscription: vendorInfo?.subscriptionPlan || "Basic Plan",
+          joined: storeData.createdAt ? new Date(storeData.createdAt).toLocaleDateString() : vendorInfo?.joined || "",
+        };
+        
+        setStoreDetails(mappedStoreDetails);
+      } catch (err: any) {
+        console.error("Failed to fetch store details:", err);
+        setError(err.response?.data?.error || "Failed to load store details. Please try again later.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  // Construct store details combining shared business info with store-specific data
-  const storeDetails = {
-    id: storeId || "1",
-    businessName: vendorBusinessInfo.businessName,
-    storeName: store.name,
-    category: store.category,
-    status: "active" as const,
-    owner: vendorBusinessInfo.owner,
-    email: vendorBusinessInfo.email,
-    phone: vendorBusinessInfo.phone,
-    taxId: vendorBusinessInfo.taxId,
-    businessAddress: vendorBusinessInfo.businessAddress,
-    businessType: vendorBusinessInfo.businessType,
-    regions: [
-      { name: "New York, NY", zipcodes: 45 },
-      { name: "Brooklyn, NY", zipcodes: 38 },
-    ],
-    rating: 4.8,
-    reviews: 156,
-    totalRevenue: 45200,
-    totalBookings: 312,
-    subscription: vendorBusinessInfo.subscription,
-    joined: vendorBusinessInfo.joined,
-  };
+    fetchStoreDetails();
+  }, [storeId]);
 
   const handleCopyEmail = () => {
     navigator.clipboard.writeText(storeDetails.email);
@@ -127,11 +155,25 @@ export function VendorStoreDetails() {
           {/* Header */}
           <div className="mb-6">
             <h1 className="text-2xl sm:text-[28px] lg:text-[32px] font-bold text-[#1F2937] mb-2">
-              Store Details: {storeDetails.storeName}
+              Store Details: {storeDetails?.storeName || "Loading..."}
             </h1>
           </div>
 
-          {/* Store Summary Card */}
+          {isLoading && (
+            <div className="text-center py-12">
+              <p className="text-[#6B7280]">Loading store details...</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+              <p className="text-red-800">{error}</p>
+            </div>
+          )}
+
+          {!isLoading && !error && storeDetails && (
+            <>
+              {/* Store Summary Card */}
           <div className="bg-white border border-[#E5E7EB] rounded-2xl p-4 sm:p-6 lg:p-8 mb-6">
             <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
               {/* Icon */}
@@ -358,6 +400,8 @@ export function VendorStoreDetails() {
               ))}
             </div>
           </div>
+            </>
+          )}
         </div>
       </main>
     </div>

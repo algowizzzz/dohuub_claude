@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ArrowLeft, Plus, Edit, Trash2, MapPin, Check } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { ArrowLeft, Plus, Edit, Trash2, MapPin, Check, AlertCircle, Loader2 } from "lucide-react";
 import { VendorSidebar } from "./VendorSidebar";
 import { VendorTopNav } from "./VendorTopNav";
 import { Button } from "../ui/button";
@@ -14,6 +14,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "../ui/dialog";
+import { useAuth } from "../../contexts/AuthContext";
+import { api } from "../../../services/api";
 
 interface Region {
   id: string;
@@ -25,6 +27,7 @@ interface Region {
 export function VendorGeographicRegions() {
   const navigate = useNavigate();
   const { storeId } = useParams();
+  const { user } = useAuth();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
@@ -39,29 +42,60 @@ export function VendorGeographicRegions() {
     }
   };
 
-  // Mock store data
-  const storeName = "John's Cleaning Services";
+  // API states
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [storeName, setStoreName] = useState("Loading...");
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [availableRegions, setAvailableRegions] = useState<any[]>([]);
 
-  const [regions, setRegions] = useState<Region[]>([
-    {
-      id: "1",
-      name: "Downtown San Francisco",
-      zipCodes: ["94102", "94103", "94104"],
-      isActive: true,
-    },
-    {
-      id: "2",
-      name: "Mission District",
-      zipCodes: ["94110", "94114"],
-      isActive: true,
-    },
-    {
-      id: "3",
-      name: "Richmond District",
-      zipCodes: ["94118", "94121"],
-      isActive: false,
-    },
-  ]);
+  // Get vendor name
+  const vendorName = user?.profile?.firstName || user?.name?.split(" ")[0] || "Vendor";
+
+  // Fetch store and available regions from API
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Fetch store details and available regions in parallel
+      const [storeResponse, regionsResponse]: any[] = await Promise.all([
+        storeId ? api.getStoreById(storeId) : Promise.resolve(null),
+        api.getRegions(),
+      ]);
+
+      // Set store name
+      if (storeResponse?.success && storeResponse.data) {
+        setStoreName(storeResponse.data.name || "Store");
+
+        // Map store's assigned regions to local format
+        if (storeResponse.data.regions && Array.isArray(storeResponse.data.regions)) {
+          const mappedRegions: Region[] = storeResponse.data.regions.map((sr: any) => ({
+            id: sr.regionId || sr.region?.id,
+            name: sr.region?.name || "Region",
+            zipCodes: sr.region?.zipCodes || [],
+            isActive: sr.isActive !== false,
+          }));
+
+          setRegions(mappedRegions);
+        }
+      }
+
+      // Set available regions for selection
+      if (regionsResponse?.success && regionsResponse.data) {
+        setAvailableRegions(regionsResponse.data);
+      }
+    } catch (err: any) {
+      console.error("Failed to fetch regions:", err);
+      setError(err.response?.data?.error || "Failed to load regions. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [storeId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -149,7 +183,7 @@ export function VendorGeographicRegions() {
 
   return (
     <div className="min-h-screen bg-white">
-      <VendorTopNav onMenuClick={handleSidebarToggle} vendorName="John Smith" />
+      <VendorTopNav onMenuClick={handleSidebarToggle} vendorName={vendorName} />
       <VendorSidebar
         isOpen={sidebarOpen}
         isCollapsed={sidebarCollapsed}
@@ -172,6 +206,23 @@ export function VendorGeographicRegions() {
         `}
       >
         <div className="max-w-[1400px] mx-auto">
+          {/* Error Banner */}
+          {error && (
+            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-amber-800">Notice</p>
+                <p className="text-sm text-amber-700">{error}</p>
+              </div>
+              <button
+                className="text-amber-500 hover:text-amber-700"
+                onClick={() => setError(null)}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* Back Button */}
           <button
             onClick={() => navigate(`/vendor/services/${storeId}/listings`)}

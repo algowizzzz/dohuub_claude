@@ -56,36 +56,6 @@ interface VendorStore {
   revenueTrend: number;
 }
 
-// Mock data for fallback when API is unavailable
-const mockStores: VendorStore[] = [
-  {
-    id: "1",
-    businessName: "Sparkle Clean Co.",
-    category: "Cleaning Services",
-    status: "ACTIVE",
-    regions: 3,
-    bookings: 156,
-    bookingTrend: 12,
-    rating: 4.8,
-    reviews: 245,
-    revenue: 12450,
-    revenueTrend: 18,
-  },
-  {
-    id: "2",
-    businessName: "Fix-It Pro Services",
-    category: "Handyman Services",
-    status: "ACTIVE",
-    regions: 2,
-    bookings: 89,
-    bookingTrend: 6,
-    rating: 4.9,
-    reviews: 187,
-    revenue: 11200,
-    revenueTrend: 8,
-  },
-];
-
 function getCategoryIcon(category: string) {
   const iconClass = "w-4 h-4";
   switch (category) {
@@ -383,9 +353,7 @@ export function VendorServices() {
       setStores(mappedStores);
     } catch (err: any) {
       console.error("Failed to fetch stores:", err);
-      setError("Failed to load stores. Showing sample data.");
-      // Fallback to mock data
-      setStores(mockStores);
+      setError(err.response?.data?.error || "Failed to load stores. Please try again.");
     } finally {
       setIsLoading(false);
     }

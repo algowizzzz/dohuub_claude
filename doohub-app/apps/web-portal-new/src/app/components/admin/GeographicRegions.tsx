@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -16,7 +16,9 @@ import {
   TrendingUp,
   TrendingDown,
   Check,
+  Loader2,
 } from "lucide-react";
+import { api } from "../../../services/api";
 import { Button } from "../ui/button";
 import {
   Select,
@@ -71,88 +73,6 @@ interface Country {
   regions: Region[];
 }
 
-// Mock data
-const mockRegions: Region[] = [
-  {
-    id: "1",
-    name: "New York, NY",
-    countryCode: "US",
-    countryName: "United States",
-    countryFlag: "🇺🇸",
-    isActive: true,
-    activeProfiles: 3,
-    totalProfiles: 6,
-    profiles: [
-      { id: "1", name: "Sparkle Clean by Michelle", category: "Cleaning Services", isActive: true, listingsCount: 8 },
-      { id: "2", name: "Beauty by Michelle", category: "Beauty Services", isActive: true, listingsCount: 12 },
-      { id: "3", name: "Michelle's Rentals", category: "Rental Properties", isActive: true, listingsCount: 5 },
-      { id: "4", name: "Fix-It Pro Services", category: "Handyman Services", isActive: false, listingsCount: 0 },
-      { id: "5", name: "Michelle's Grocery Hub", category: "Grocery", isActive: false, listingsCount: 0 },
-      { id: "6", name: "Caring Hands Caregiving", category: "Caregiving Services", isActive: false, listingsCount: 0 },
-    ],
-    performance: {
-      bookings: 234,
-      bookingsTrend: 15,
-      revenue: 12450,
-      revenueTrend: 12,
-      customers: 189,
-    },
-    notes: "High-performing region with strong demand for cleaning and beauty services.",
-  },
-  {
-    id: "2",
-    name: "Los Angeles, CA",
-    countryCode: "US",
-    countryName: "United States",
-    countryFlag: "🇺🇸",
-    isActive: true,
-    activeProfiles: 2,
-    totalProfiles: 6,
-    profiles: [
-      { id: "1", name: "Sparkle Clean by Michelle", category: "Cleaning Services", isActive: true, listingsCount: 6 },
-      { id: "2", name: "Beauty by Michelle", category: "Beauty Services", isActive: true, listingsCount: 9 },
-      { id: "3", name: "Michelle's Rentals", category: "Rental Properties", isActive: false, listingsCount: 0 },
-      { id: "4", name: "Fix-It Pro Services", category: "Handyman Services", isActive: false, listingsCount: 0 },
-      { id: "5", name: "Michelle's Grocery Hub", category: "Grocery", isActive: false, listingsCount: 0 },
-      { id: "6", name: "Caring Hands Caregiving", category: "Caregiving Services", isActive: false, listingsCount: 0 },
-    ],
-    performance: {
-      bookings: 156,
-      bookingsTrend: 8,
-      revenue: 8920,
-      revenueTrend: 5,
-      customers: 124,
-    },
-    notes: "",
-  },
-  {
-    id: "3",
-    name: "Chicago, IL",
-    countryCode: "US",
-    countryName: "United States",
-    countryFlag: "🇺🇸",
-    isActive: false,
-    activeProfiles: 0,
-    totalProfiles: 6,
-    profiles: [
-      { id: "1", name: "Sparkle Clean by Michelle", category: "Cleaning Services", isActive: false, listingsCount: 0 },
-      { id: "2", name: "Beauty by Michelle", category: "Beauty Services", isActive: false, listingsCount: 0 },
-      { id: "3", name: "Michelle's Rentals", category: "Rental Properties", isActive: false, listingsCount: 0 },
-      { id: "4", name: "Fix-It Pro Services", category: "Handyman Services", isActive: false, listingsCount: 0 },
-      { id: "5", name: "Michelle's Grocery Hub", category: "Grocery", isActive: false, listingsCount: 0 },
-      { id: "6", name: "Caring Hands Caregiving", category: "Caregiving Services", isActive: false, listingsCount: 0 },
-    ],
-    performance: {
-      bookings: 0,
-      bookingsTrend: 0,
-      revenue: 0,
-      revenueTrend: 0,
-      customers: 0,
-    },
-    notes: "",
-  },
-];
-
 export function GeographicRegions() {
   const navigate = useNavigate();
   
@@ -171,13 +91,53 @@ export function GeographicRegions() {
   };
 
   // State
-  const [regions, setRegions] = useState<Region[]>(mockRegions);
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("all");
   const [groupBy, setGroupBy] = useState("country");
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editedNotes, setEditedNotes] = useState("");
+
+  // Fetch regions from API
+  const fetchRegions = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response: any = await api.get('/admin/regions');
+      const regionsData = Array.isArray(response) ? response : response?.data || [];
+      setRegions(regionsData.map((r: any) => ({
+        id: r.id,
+        name: r.name || 'Unknown Region',
+        countryCode: r.countryCode || 'US',
+        countryName: r.countryName || 'United States',
+        countryFlag: r.countryFlag || '🇺🇸',
+        isActive: r.isActive ?? true,
+        activeProfiles: r.activeProfiles || 0,
+        totalProfiles: r.totalProfiles || 0,
+        profiles: r.profiles || [],
+        performance: {
+          bookings: r.performance?.bookings || 0,
+          bookingsTrend: r.performance?.bookingsTrend || 0,
+          revenue: r.performance?.revenue || 0,
+          revenueTrend: r.performance?.revenueTrend || 0,
+          customers: r.performance?.customers || 0,
+        },
+        notes: r.notes || '',
+      })));
+    } catch (err: any) {
+      console.error('Failed to fetch regions:', err);
+      setError(err?.response?.data?.error || 'Failed to load regions. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRegions();
+  }, [fetchRegions]);
 
   // Group regions by country
   const groupedRegions: Country[] = [];
@@ -334,7 +294,34 @@ export function GeographicRegions() {
             </div>
           </div>
 
+          {/* Error Banner */}
+          {error && (
+            <div className="mb-4 p-4 rounded-lg bg-[#FEE2E2] border border-[#DC2626] text-[#991B1B] flex items-center justify-between">
+              <span className="text-sm font-medium">{error}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchRegions}
+                className="ml-4 border-[#DC2626] text-[#DC2626] hover:bg-[#FEE2E2]"
+              >
+                Try Again
+              </Button>
+            </div>
+          )}
+
           {/* Regions List */}
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <Loader2 className="w-12 h-12 text-[#6B7280] animate-spin mb-4" />
+              <p className="text-[15px] text-[#6B7280]">Loading regions...</p>
+            </div>
+          ) : groupedRegions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <Globe className="w-16 h-16 text-[#9CA3AF] mb-4" />
+              <h3 className="text-2xl font-bold text-[#1F2937] mb-2">No regions found</h3>
+              <p className="text-[15px] text-[#6B7280]">Add regions to start managing your geographic coverage</p>
+            </div>
+          ) : (
           <div className="space-y-4 sm:space-y-5">
             {groupedRegions.map((country) => (
               <div key={country.code}>
@@ -509,6 +496,7 @@ export function GeographicRegions() {
               </div>
             ))}
           </div>
+          )}
         </div>
       </main>
 

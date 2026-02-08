@@ -8,12 +8,33 @@ import { useAuth } from "../../contexts/AuthContext";
 
 export function VendorLogin() {
   const navigate = useNavigate();
-  const { sendOtp, loginWithOtp } = useAuth();
-  const [email, setEmail] = useState("");
+  const { sendOtp, loginWithOtp, login } = useAuth();
+  const [email, setEmail] = useState("vendor@test.com");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [useDevLogin, setUseDevLogin] = useState(true); // Default to dev login for testing
+
+  // Dev login handler (bypasses OTP for testing)
+  const handleDevLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const result = await login(email, "");
+      if (result.success) {
+        navigate("/vendor/dashboard");
+      } else {
+        setError(result.error || "Login failed");
+      }
+    } catch (err) {
+      setError("An error occurred. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,8 +119,46 @@ export function VendorLogin() {
             </div>
           )}
 
-          {/* Email + OTP Form */}
-          {!otpSent ? (
+          {/* Dev Login Toggle (for testing) */}
+          <div className="mb-4 flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="devLogin"
+              checked={useDevLogin}
+              onChange={(e) => setUseDevLogin(e.target.checked)}
+              className="rounded border-gray-300"
+            />
+            <label htmlFor="devLogin" className="text-xs text-[#6B7280]">
+              Use Dev Login (Testing Mode)
+            </label>
+          </div>
+
+          {/* Email + OTP Form or Dev Login */}
+          {useDevLogin ? (
+            <form onSubmit={handleDevLogin} className="space-y-6">
+              <div>
+                <Label htmlFor="email" className="mb-1.5">
+                  Email Address
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="vendor@test.com"
+                  required
+                />
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isLoading || !email}
+              >
+                {isLoading ? "Logging in..." : "Dev Login"}
+              </Button>
+            </form>
+          ) : !otpSent ? (
             <form onSubmit={handleSendOTP} className="space-y-6">
               <div>
                 <Label htmlFor="email" className="mb-1.5">

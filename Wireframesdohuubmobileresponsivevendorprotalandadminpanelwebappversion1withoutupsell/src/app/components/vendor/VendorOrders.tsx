@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, User, Calendar, DollarSign, Package, Clock, Check, ChevronRight } from "lucide-react";
 import { parseISO, isWithinInterval } from "date-fns";
 import { VendorSidebar } from "./VendorSidebar";
@@ -7,6 +7,7 @@ import { VendorOrderDetailModal } from "./VendorOrderDetailModal";
 import { DateRangePicker, DateRange } from "../ui/date-range-picker";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import { api } from "../../../services/api";
 import {
   Select,
   SelectContent,
@@ -77,235 +78,66 @@ export function VendorOrders() {
   const [selectedStore, setSelectedStore] = useState<string>("all");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock orders data - 9 entries, one for each category
-  const [orders] = useState<Order[]>([
-    // Cleaning Service (Accepted)
-    {
-      id: "1",
-      orderNumber: "CLN-12345",
-      storeName: "CleanCo Services",
-      customerName: "Sarah Johnson",
-      customerEmail: "sarah.j@email.com",
-      customerPhone: "(555) 123-4567",
-      total: 150.0,
-      date: "2026-01-08",
-      time: "10:00 AM",
-      status: "ACCEPTED",
-      serviceName: "Deep Home Cleaning",
-      type: "service",
-      serviceDetails: {
-        service: "Deep Home Cleaning",
-        category: "Residential Cleaning",
-        scheduledDate: "January 8, 2026",
-        time: "10:00 AM - 2:00 PM",
-        duration: "4 hours",
-        serviceAddress: "123 Oak Street, San Francisco, CA 94102",
-        specialInstructions: "Please focus on kitchen and bathrooms",
-      },
-    },
-    // Beauty Service (Accepted)
-    {
-      id: "2",
-      orderNumber: "BTY-78901",
-      storeName: "Beauty by Michelle",
-      customerName: "Jessica Martinez",
-      customerEmail: "j.martinez@email.com",
-      customerPhone: "(555) 456-7890",
-      total: 120.0,
-      date: "2026-01-07",
-      time: "3:00 PM",
-      status: "ACCEPTED",
-      serviceName: "Hair & Makeup Package",
-      type: "service",
-      serviceDetails: {
-        service: "Hair & Makeup Package",
-        category: "Beauty Services",
-        scheduledDate: "January 7, 2026",
-        time: "3:00 PM - 5:00 PM",
-        duration: "2 hours",
-        serviceAddress: "321 Elm Street, San Francisco, CA 94105",
-        specialInstructions: "Special occasion – wedding guest",
-      },
-    },
-    // Groceries (Accepted)
-    {
-      id: "3",
-      orderNumber: "GRO-45678",
-      storeName: "Fresh Market",
-      customerName: "Emily Rodriguez",
-      customerEmail: "emily.r@email.com",
-      customerPhone: "(555) 345-6789",
-      total: 89.5,
-      date: "2026-01-08",
-      time: "2:00 PM",
-      status: "ACCEPTED",
-      serviceName: "Grocery Delivery",
-      itemCount: 5,
-      type: "delivery",
-      deliveryDetails: {
-        items: [
-          { name: "Organic Apples (2lb)", quantity: 1, price: 8.99 },
-          { name: "Fresh Salmon Fillet", quantity: 2, price: 24.99 },
-          { name: "Whole Grain Bread", quantity: 1, price: 5.99 },
-          { name: "Greek Yogurt (6-pack)", quantity: 1, price: 7.99 },
-          { name: "Mixed Salad Greens", quantity: 2, price: 6.99 },
-        ],
-        deliveryAddress: "789 Pine Avenue, San Francisco, CA 94104",
-        deliveryWindow: "2:00 PM - 4:00 PM",
-        specialInstructions: "Please leave at front door if no answer",
-      },
-    },
-    // Handyman (In Progress)
-    {
-      id: "4",
-      orderNumber: "HND-23456",
-      storeName: "Handyman Services",
-      customerName: "Michael Brown",
-      customerEmail: "m.brown@email.com",
-      customerPhone: "(555) 234-5678",
-      total: 200.0,
-      date: "2026-01-07",
-      time: "9:00 AM",
-      status: "IN_PROGRESS",
-      serviceName: "Bathroom Faucet Repair",
-      type: "service",
-      serviceDetails: {
-        service: "Bathroom Faucet Repair",
-        category: "Handyman Services",
-        scheduledDate: "January 7, 2026",
-        time: "9:00 AM - 11:00 AM",
-        duration: "2 hours",
-        serviceAddress: "456 Downtown St, San Francisco, CA 94103",
-        specialInstructions: "Leaking faucet in master bathroom",
-      },
-    },
-    // Ride Assistance (In Progress)
-    {
-      id: "5",
-      orderNumber: "RDE-89012",
-      storeName: "Safe Rides Transport",
-      customerName: "Robert Wilson",
-      customerEmail: "r.wilson@email.com",
-      customerPhone: "(555) 567-8901",
-      total: 35.0,
-      date: "2026-01-07",
-      time: "11:30 AM",
-      status: "IN_PROGRESS",
-      serviceName: "Medical Appointment Transport",
-      type: "service",
-      serviceDetails: {
-        service: "Medical Appointment Transport",
-        category: "Ride Assistance",
-        scheduledDate: "January 7, 2026",
-        time: "11:30 AM - 1:00 PM",
-        duration: "1.5 hours",
-        serviceAddress: "Pick-up: 789 Market St, Drop-off: Medical Center",
-        specialInstructions: "Patient requires wheelchair assistance",
-      },
-    },
-    // Companionship (In Progress)
-    {
-      id: "6",
-      orderNumber: "CMP-34567",
-      storeName: "Caring Companions",
-      customerName: "Linda Davis",
-      customerEmail: "l.davis@email.com",
-      customerPhone: "(555) 678-9012",
-      total: 85.0,
-      date: "2026-01-07",
-      time: "2:00 PM",
-      status: "IN_PROGRESS",
-      serviceName: "Afternoon Companionship",
-      type: "service",
-      serviceDetails: {
-        service: "Afternoon Companionship",
-        category: "Companionship Support",
-        scheduledDate: "January 7, 2026",
-        time: "2:00 PM - 5:00 PM",
-        duration: "3 hours",
-        serviceAddress: "234 Sunset Blvd, San Francisco, CA 94122",
-        specialInstructions: "Light conversation, reading, and assistance with puzzles",
-      },
-    },
-    // Rental Property (Completed)
-    {
-      id: "7",
-      orderNumber: "RNT-67890",
-      storeName: "Prime Rentals",
-      customerName: "James Taylor",
-      customerEmail: "j.taylor@email.com",
-      customerPhone: "(555) 789-0123",
-      total: 2500.0,
-      date: "2026-01-05",
-      time: "10:00 AM",
-      status: "COMPLETED",
-      serviceName: "Monthly Apartment Rental",
-      type: "service",
-      serviceDetails: {
-        service: "Monthly Apartment Rental",
-        category: "Rental Properties",
-        scheduledDate: "January 5, 2026",
-        time: "10:00 AM - 11:00 AM",
-        duration: "1 hour (viewing)",
-        serviceAddress: "567 Bay Street, Apt 3B, San Francisco, CA 94111",
-        specialInstructions: "First month plus deposit paid",
-      },
-    },
-    // Food Delivery (Completed)
-    {
-      id: "8",
-      orderNumber: "FOOD-12309",
-      storeName: "Downtown Delivery",
-      customerName: "Amanda Chen",
-      customerEmail: "a.chen@email.com",
-      customerPhone: "(555) 890-1234",
-      total: 45.75,
-      date: "2026-01-06",
-      time: "7:00 PM",
-      status: "COMPLETED",
-      serviceName: "Restaurant Delivery",
-      itemCount: 3,
-      type: "delivery",
-      deliveryDetails: {
-        items: [
-          { name: "Chicken Tikka Masala", quantity: 1, price: 16.99 },
-          { name: "Garlic Naan (2pc)", quantity: 1, price: 4.99 },
-          { name: "Mango Lassi", quantity: 2, price: 5.99 },
-        ],
-        deliveryAddress: "890 Mission Street, San Francisco, CA 94110",
-        deliveryWindow: "7:00 PM - 7:30 PM",
-        specialInstructions: "Please ring doorbell twice",
-      },
-    },
-    // Beauty Products (Completed)
-    {
-      id: "9",
-      orderNumber: "BPR-56789",
-      storeName: "Beauty Essentials",
-      customerName: "Sophie Anderson",
-      customerEmail: "s.anderson@email.com",
-      customerPhone: "(555) 901-2345",
-      total: 127.50,
-      date: "2026-01-05",
-      time: "3:00 PM",
-      status: "COMPLETED",
-      serviceName: "Beauty Products Order",
-      itemCount: 4,
-      type: "delivery",
-      deliveryDetails: {
-        items: [
-          { name: "Hydrating Face Serum", quantity: 1, price: 45.0 },
-          { name: "Vitamin C Moisturizer", quantity: 1, price: 38.0 },
-          { name: "Eye Cream", quantity: 1, price: 28.5 },
-          { name: "Face Mask Set (3pc)", quantity: 1, price: 16.0 },
-        ],
-        deliveryAddress: "123 Valencia Street, San Francisco, CA 94107",
-        deliveryWindow: "3:00 PM - 5:00 PM",
-        specialInstructions: "Leave package with building concierge",
-      },
-    },
-  ]);
+  // Fetch orders from API
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const response: any = await api.getVendorOrders({ status: activeTab });
+        
+        // Map API response to Order interface
+        const mappedOrders: Order[] = (response.orders || response || []).map((order: any) => ({
+          id: order.id,
+          orderNumber: order.orderNumber || order.id,
+          storeName: order.store?.name || order.storeName || "Unknown Store",
+          customerName: order.customer?.name || order.customerName || "Unknown",
+          customerEmail: order.customer?.email || order.customerEmail || "",
+          customerPhone: order.customer?.phone || order.customerPhone || "",
+          total: order.total || 0,
+          date: order.scheduledDate || order.createdAt || new Date().toISOString(),
+          time: order.scheduledTime || "TBD",
+          status: (order.status || "ACCEPTED").toUpperCase() as OrderStatus,
+          serviceName: order.listing?.title || order.serviceName || "Service",
+          itemCount: order.items?.length || order.itemCount,
+          type: order.items?.length ? "delivery" : "service",
+          serviceDetails: order.items?.length ? undefined : {
+            service: order.listing?.title || order.serviceName,
+            category: order.listing?.category || "General",
+            scheduledDate: order.scheduledDate ? new Date(order.scheduledDate).toLocaleDateString() : "",
+            time: order.scheduledTime || "",
+            duration: order.duration || "N/A",
+            serviceAddress: order.address?.fullAddress || order.serviceAddress || "",
+            specialInstructions: order.specialInstructions || "",
+          },
+          deliveryDetails: order.items?.length ? {
+            items: order.items.map((item: any) => ({
+              name: item.name || item.listing?.name || "Item",
+              quantity: item.quantity || 1,
+              price: item.price || item.unitPrice || 0,
+            })),
+            deliveryAddress: order.address?.fullAddress || order.deliveryAddress || "",
+            deliveryWindow: order.deliveryWindow || "TBD",
+            specialInstructions: order.specialInstructions || "",
+          } : undefined,
+        }));
+        
+        setOrders(mappedOrders);
+      } catch (err: any) {
+        console.error("Failed to fetch orders:", err);
+        setError(err.response?.data?.error || "Failed to load orders. Please try again later.");
+        setOrders([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, [activeTab]);
 
   // Get unique stores
   const stores = Array.from(new Set(orders.map((order) => order.storeName)));

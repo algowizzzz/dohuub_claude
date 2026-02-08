@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   X,
   Ban,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import {
@@ -29,43 +30,6 @@ interface ListingReport {
   reportExplanation: string;
   reportedAt: string;
 }
-
-// Mock data - Using real vendor IDs from Supabase
-const mockReports: ListingReport[] = [
-  {
-    id: "1",
-    listingName: "Deep Cleaning Service",
-    vendorId: "cmkm7tbni001l75x1vpnnn4qw", // Sparkle Clean Co.
-    vendorName: "CleanCo Services",
-    customerName: "John D.",
-    reportReason: "Service Not As Described",
-    reportExplanation:
-      "Service advertised as 3-hour deep clean. Vendor left after 90 minutes, many areas not cleaned as promised. When questioned, claimed 3 hours is 'maximum' not standard. Very disappointed.",
-    reportedAt: "2026-01-03",
-  },
-  {
-    id: "2",
-    listingName: "Professional Plumbing Repair",
-    vendorId: "cmkm7tc11001y75x1w7kfqpws", // Fix-It Pro Services
-    vendorName: "QuickFix Pro",
-    customerName: "Maria S.",
-    reportReason: "Safety Concerns",
-    reportExplanation:
-      "The vendor did not follow proper safety protocols. No protective equipment was used and water was left running after the job, causing minor flooding in my basement.",
-    reportedAt: "2026-01-02",
-  },
-  {
-    id: "3",
-    listingName: "Home Beauty Services",
-    vendorId: "cmkm7tcdp002b75x1977ghbeq", // Glamour Studio
-    vendorName: "Glam Squad Mobile",
-    customerName: "Sarah K.",
-    reportReason: "Misleading Pricing",
-    reportExplanation:
-      "Listing showed $50 for haircut but was charged $120 at completion. Hidden fees were not disclosed upfront. This is deceptive pricing.",
-    reportedAt: "2025-12-28",
-  },
-];
 
 function ReportCard({ report, onReportHandled }: { report: ListingReport; onReportHandled?: (reportId: string) => void }) {
   const navigate = useNavigate();
@@ -248,7 +212,38 @@ export function ReportedListings() {
     }
   };
 
-  const [reports, setReports] = useState<ListingReport[]>(mockReports);
+  const [reports, setReports] = useState<ListingReport[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch reports from API
+  const fetchReports = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response: any = await api.getReportedListings();
+      const reportsData = Array.isArray(response) ? response : response?.data || [];
+      setReports(reportsData.map((r: any) => ({
+        id: r.id,
+        listingName: r.listingName || r.listing?.title || 'Unknown Listing',
+        vendorId: r.vendorId || r.listing?.vendorId || '',
+        vendorName: r.vendorName || r.vendor?.businessName || 'Unknown Vendor',
+        customerName: r.customerName || r.customer?.name || 'Anonymous',
+        reportReason: r.reason || r.reportReason || 'Unspecified',
+        reportExplanation: r.explanation || r.reportExplanation || r.description || '',
+        reportedAt: r.createdAt || r.reportedAt || new Date().toISOString(),
+      })));
+    } catch (err: any) {
+      console.error('Failed to fetch reports:', err);
+      setError(err?.response?.data?.error || 'Failed to load reports. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchReports();
+  }, [fetchReports]);
 
   const handleReportHandled = (reportId: string) => {
     setReports(prev => prev.filter(r => r.id !== reportId));
@@ -282,18 +277,49 @@ export function ReportedListings() {
             </p>
           </div>
 
+          {/* Error Banner */}
+          {error && (
+            <div className="mb-4 p-4 rounded-lg bg-[#FEE2E2] border border-[#DC2626] text-[#991B1B] flex items-center justify-between">
+              <span className="text-sm font-medium">{error}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchReports}
+                className="ml-4 border-[#DC2626] text-[#DC2626] hover:bg-[#FEE2E2]"
+              >
+                Try Again
+              </Button>
+            </div>
+          )}
+
           {/* Stats */}
           <div className="bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl p-4 mb-6">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-[#F59E0B]" />
-              <p className="text-sm font-semibold text-[#1F2937]">
-                {reports.length} {reports.length === 1 ? "Report" : "Reports"} Pending Review
-              </p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-[#F59E0B]" />
+                <p className="text-sm font-semibold text-[#1F2937]">
+                  {reports.length} {reports.length === 1 ? "Report" : "Reports"} Pending Review
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchReports}
+                disabled={isLoading}
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
             </div>
           </div>
 
           {/* Report Cards */}
-          {reports.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="w-12 h-12 border-4 border-[#E5E7EB] border-t-[#1F2937] rounded-full animate-spin mb-4" />
+              <p className="text-[15px] text-[#6B7280]">Loading reports...</p>
+            </div>
+          ) : reports.length === 0 ? (
             <div className="text-center py-12">
               <AlertTriangle className="w-12 h-12 text-[#D1D5DB] mx-auto mb-3" />
               <p className="text-[#6B7280]">No reports to review</p>

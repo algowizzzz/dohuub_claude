@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   MapPin,
+  Loader2,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -23,6 +24,7 @@ import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import { Checkbox } from "../ui/checkbox";
 import { AdminSidebarRetractable } from "./AdminSidebarRetractable";
 import { AdminTopNav } from "./AdminTopNav";
+import { api } from "../../../services/api";
 
 interface ServiceImage {
   id: string;
@@ -37,6 +39,14 @@ interface RegionPrice {
   price: number;
 }
 
+interface ProfileData {
+  id: string;
+  name: string;
+  category: string;
+  regions: Array<{ id: string; name: string }>;
+}
+
+// Service types by category - static config
 const SERVICE_TYPES_BY_CATEGORY: Record<string, string[]> = {
   "Cleaning Services": [
     "Deep Cleaning",
@@ -99,9 +109,11 @@ export function CreateEditServiceListing() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // Mock profile data
-  const profileName = "Sparkle Clean by Michelle";
-  const profileCategory = "Cleaning Services";
+  // Data state
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Form state
   const [serviceName, setServiceName] = useState("");
@@ -111,13 +123,93 @@ export function CreateEditServiceListing() {
   const [basePrice, setBasePrice] = useState("");
   const [duration, setDuration] = useState("");
   const [priceType, setPriceType] = useState("fixed");
-  const [regions, setRegions] = useState<RegionPrice[]>([
-    { id: "1", name: "New York, NY", isEnabled: true, price: 120 },
-    { id: "2", name: "Los Angeles, CA", isEnabled: true, price: 135 },
-    { id: "3", name: "Chicago, IL", isEnabled: true, price: 120 },
-    { id: "4", name: "Houston, TX", isEnabled: false, price: 120 },
-  ]);
+  const [regions, setRegions] = useState<RegionPrice[]>([]);
   const [bookingSettingsExpanded, setBookingSettingsExpanded] = useState(false);
+  const [advanceNotice, setAdvanceNotice] = useState("");
+  const [cancellationPolicy, setCancellationPolicy] = useState("");
+  const [specialRequirements, setSpecialRequirements] = useState("");
+
+  // Fetch profile and listing data
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Fetch profile
+      const profileResponse: any = await api.get(`/admin/michelle-profiles/${profileId}`);
+      const profileData = profileResponse?.data || profileResponse;
+
+      setProfile({
+        id: profileData.id,
+        name: profileData.businessName || profileData.name || 'Unknown Profile',
+        category: profileData.category || 'General',
+        regions: profileData.regions || [],
+      });
+
+      // Set up regions from profile
+      const profileRegions = (profileData.regions || []).map((r: any) => ({
+        id: r.id,
+        name: r.name || r.city || 'Unknown Region',
+        isEnabled: true,
+        price: parseFloat(basePrice) || 0,
+      }));
+      setRegions(profileRegions);
+
+      // If editing, fetch existing listing
+      if (isEditing && listingId) {
+        const listingResponse: any = await api.get(`/admin/listings/${listingId}`);
+        const listing = listingResponse?.data || listingResponse;
+
+        setServiceName(listing.name || listing.serviceName || '');
+        setServiceType(listing.serviceType || listing.type || '');
+        setDescription(listing.description || '');
+        setBasePrice((listing.price || listing.basePrice || '').toString());
+        setDuration(listing.duration || '');
+        setPriceType(listing.priceType || 'fixed');
+        setAdvanceNotice(listing.advanceNotice || '');
+        setCancellationPolicy(listing.cancellationPolicy || '');
+        setSpecialRequirements(listing.specialRequirements || listing.notes || '');
+
+        // Set images
+        if (listing.images?.length) {
+          setImages(listing.images.map((img: any, index: number) => ({
+            id: img.id || index.toString(),
+            url: img.url,
+            isPrimary: img.isPrimary || index === 0,
+          })));
+        }
+
+        // Set region pricing
+        if (listing.regionPricing?.length) {
+          setRegions(listing.regionPricing.map((rp: any) => ({
+            id: rp.regionId || rp.id,
+            name: rp.regionName || rp.name,
+            isEnabled: rp.isEnabled !== false,
+            price: rp.price || parseFloat(basePrice) || 0,
+          })));
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch data:', err);
+      setError(err?.response?.data?.error || 'Failed to load data');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [profileId, listingId, isEditing, basePrice]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Update region prices when base price changes
+  useEffect(() => {
+    if (basePrice) {
+      const price = parseFloat(basePrice) || 0;
+      setRegions(prev => prev.map(r => ({
+        ...r,
+        price: r.price === 0 ? price : r.price,
+      })));
+    }
+  }, [basePrice]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -139,12 +231,54 @@ export function CreateEditServiceListing() {
     setImages(images.filter(img => img.id !== id));
   };
 
-  const handleSave = (activate: boolean) => {
-    // Save logic here
-    navigate(`/admin/michelle-profiles/${profileId}/listings`);
+  const handleSave = async (activate: boolean) => {
+    setIsSaving(true);
+    try {
+      const listingData = {
+        profileId,
+        name: serviceName,
+        serviceType,
+        description,
+        basePrice: parseFloat(basePrice) || 0,
+        duration,
+        priceType,
+        isActive: activate,
+        images: images.map(img => ({
+          url: img.url,
+          isPrimary: img.isPrimary,
+        })),
+        regionPricing: regions.filter(r => r.isEnabled).map(r => ({
+          regionId: r.id,
+          price: r.price,
+        })),
+        advanceNotice,
+        cancellationPolicy,
+        specialRequirements,
+      };
+
+      if (isEditing) {
+        await api.put(`/admin/listings/${listingId}`, listingData);
+      } else {
+        await api.post('/admin/listings', listingData);
+      }
+
+      navigate(`/admin/michelle-profiles/${profileId}/listings`);
+    } catch (err: any) {
+      console.error('Failed to save listing:', err);
+      setError(err?.response?.data?.error || 'Failed to save listing');
+      setIsSaving(false);
+    }
   };
 
-  const serviceTypes = SERVICE_TYPES_BY_CATEGORY[profileCategory] || [];
+  const serviceTypes = profile ? (SERVICE_TYPES_BY_CATEGORY[profile.category] || []) : [];
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#6B7280] animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -175,16 +309,29 @@ export function CreateEditServiceListing() {
               {isEditing ? "Edit Service Listing" : "Create Service Listing"}
             </h1>
 
+            {/* Error Banner */}
+            {error && (
+              <div className="mb-6 p-4 rounded-lg bg-[#FEE2E2] border border-[#DC2626] text-[#991B1B] flex items-center justify-between">
+                <span className="text-sm font-medium">{error}</span>
+                <button
+                  onClick={() => setError(null)}
+                  className="ml-4 text-[#DC2626] hover:underline"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
             {/* Profile Context */}
             <div className="bg-[#F8F9FA] border border-[#E5E7EB] rounded-lg px-5 py-4 mb-8 flex items-center gap-6">
               <div>
                 <span className="text-sm text-[#6B7280]">Profile: </span>
-                <span className="text-sm font-bold text-[#1F2937]">{profileName}</span>
+                <span className="text-sm font-bold text-[#1F2937]">{profile?.name}</span>
               </div>
               <div className="h-4 w-px bg-[#E5E7EB]" />
               <div>
                 <span className="text-sm text-[#6B7280]">Category: </span>
-                <span className="text-sm font-bold text-[#1F2937]">🧹 {profileCategory}</span>
+                <span className="text-sm font-bold text-[#1F2937]">{profile?.category}</span>
               </div>
             </div>
 
@@ -252,9 +399,9 @@ export function CreateEditServiceListing() {
                     Service Images
                   </Label>
                   <p className="text-[13px] text-[#6B7280] mb-3">
-                    Up to 5 images • Recommended: 1200x800px • Max 5MB each • JPG or PNG
+                    Up to 5 images - Recommended: 1200x800px - Max 5MB each - JPG or PNG
                   </p>
-                  
+
                   <div className="flex gap-4 overflow-x-auto pb-2">
                     {images.map((image, index) => (
                       <div key={image.id} className="relative flex-shrink-0 group">
@@ -394,90 +541,98 @@ export function CreateEditServiceListing() {
                   Select which regions this service is available in. You can adjust pricing for specific regions.
                 </p>
 
-                <div className="flex justify-end gap-3 mb-4 text-sm">
-                  <button
-                    onClick={() => setRegions(regions.map(r => ({ ...r, isEnabled: true })))}
-                    className="text-[#3B82F6] hover:underline"
-                  >
-                    Select All
-                  </button>
-                  <span className="text-[#E5E7EB]">|</span>
-                  <button
-                    onClick={() => setRegions(regions.map(r => ({ ...r, isEnabled: false })))}
-                    className="text-[#3B82F6] hover:underline"
-                  >
-                    Clear All
-                  </button>
-                </div>
+                {regions.length === 0 ? (
+                  <p className="text-center py-8 text-[#6B7280]">
+                    No regions configured for this profile. Add regions in the profile settings.
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex justify-end gap-3 mb-4 text-sm">
+                      <button
+                        onClick={() => setRegions(regions.map(r => ({ ...r, isEnabled: true })))}
+                        className="text-[#3B82F6] hover:underline"
+                      >
+                        Select All
+                      </button>
+                      <span className="text-[#E5E7EB]">|</span>
+                      <button
+                        onClick={() => setRegions(regions.map(r => ({ ...r, isEnabled: false })))}
+                        className="text-[#3B82F6] hover:underline"
+                      >
+                        Clear All
+                      </button>
+                    </div>
 
-                <div className="space-y-0">
-                  {regions.map((region, index) => (
-                    <div
-                      key={region.id}
-                      className={`grid grid-cols-3 gap-6 items-center py-4 ${
-                        index < regions.length - 1 ? 'border-b border-[#F3F4F6]' : ''
-                      }`}
-                    >
-                      {/* Column 1: Checkbox + Name */}
-                      <div className="flex items-center gap-3">
-                        <Checkbox
-                          id={`region-${region.id}`}
-                          checked={region.isEnabled}
-                          onCheckedChange={(checked) => {
-                            setRegions(regions.map(r =>
-                              r.id === region.id ? { ...r, isEnabled: checked as boolean } : r
-                            ));
-                          }}
-                          className="w-5 h-5"
-                        />
-                        <Label htmlFor={`region-${region.id}`} className="text-base text-[#1F2937] cursor-pointer flex items-center gap-2">
-                          <MapPin className="w-4 h-4 text-[#6B7280]" />
-                          {region.name}
-                        </Label>
-                      </div>
+                    <div className="space-y-0">
+                      {regions.map((region, index) => (
+                        <div
+                          key={region.id}
+                          className={`grid grid-cols-3 gap-6 items-center py-4 ${
+                            index < regions.length - 1 ? 'border-b border-[#F3F4F6]' : ''
+                          }`}
+                        >
+                          {/* Column 1: Checkbox + Name */}
+                          <div className="flex items-center gap-3">
+                            <Checkbox
+                              id={`region-${region.id}`}
+                              checked={region.isEnabled}
+                              onCheckedChange={(checked) => {
+                                setRegions(regions.map(r =>
+                                  r.id === region.id ? { ...r, isEnabled: checked as boolean } : r
+                                ));
+                              }}
+                              className="w-5 h-5"
+                            />
+                            <Label htmlFor={`region-${region.id}`} className="text-base text-[#1F2937] cursor-pointer flex items-center gap-2">
+                              <MapPin className="w-4 h-4 text-[#6B7280]" />
+                              {region.name}
+                            </Label>
+                          </div>
 
-                      {/* Column 2: Price */}
-                      <div>
-                        {region.isEnabled && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-[13px] text-[#6B7280]">Base:</span>
-                            <div className="relative w-[120px]">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#6B7280]">$</span>
-                              <Input
-                                type="number"
-                                value={region.price}
-                                onChange={(e) => {
-                                  const newPrice = parseFloat(e.target.value) || 0;
-                                  setRegions(regions.map(r =>
-                                    r.id === region.id ? { ...r, price: newPrice } : r
-                                  ));
-                                }}
-                                className="h-10 text-sm border border-[#E5E7EB] rounded-lg pl-7"
-                                step="0.01"
-                                min="0"
-                              />
-                            </div>
-                            {basePrice && region.price !== parseFloat(basePrice) && (
-                              <span className="text-xs text-[#10B981]">(adjusted)</span>
+                          {/* Column 2: Price */}
+                          <div>
+                            {region.isEnabled && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-[13px] text-[#6B7280]">Base:</span>
+                                <div className="relative w-[120px]">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#6B7280]">$</span>
+                                  <Input
+                                    type="number"
+                                    value={region.price}
+                                    onChange={(e) => {
+                                      const newPrice = parseFloat(e.target.value) || 0;
+                                      setRegions(regions.map(r =>
+                                        r.id === region.id ? { ...r, price: newPrice } : r
+                                      ));
+                                    }}
+                                    className="h-10 text-sm border border-[#E5E7EB] rounded-lg pl-7"
+                                    step="0.01"
+                                    min="0"
+                                  />
+                                </div>
+                                {basePrice && region.price !== parseFloat(basePrice) && (
+                                  <span className="text-xs text-[#10B981]">(adjusted)</span>
+                                )}
+                              </div>
                             )}
                           </div>
-                        )}
-                      </div>
 
-                      {/* Column 3: Status */}
-                      <div className="text-right">
-                        {region.isEnabled ? (
-                          <span className="inline-flex items-center gap-1.5 text-sm text-[#10B981]">
-                            <span className="w-2 h-2 rounded-full bg-[#10B981]" />
-                            Available
-                          </span>
-                        ) : (
-                          <span className="text-sm text-[#9CA3AF]">Not available</span>
-                        )}
-                      </div>
+                          {/* Column 3: Status */}
+                          <div className="text-right">
+                            {region.isEnabled ? (
+                              <span className="inline-flex items-center gap-1.5 text-sm text-[#10B981]">
+                                <span className="w-2 h-2 rounded-full bg-[#10B981]" />
+                                Available
+                              </span>
+                            ) : (
+                              <span className="text-sm text-[#9CA3AF]">Not available</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -505,7 +660,7 @@ export function CreateEditServiceListing() {
                       <Label className="text-[15px] font-semibold text-[#1F2937] mb-2 block">
                         Minimum Advance Notice
                       </Label>
-                      <Select>
+                      <Select value={advanceNotice} onValueChange={setAdvanceNotice}>
                         <SelectTrigger className="h-[52px] text-base border-2 border-[#E5E7EB] rounded-[10px]">
                           <SelectValue placeholder="Select..." />
                         </SelectTrigger>
@@ -529,7 +684,7 @@ export function CreateEditServiceListing() {
                       <Label className="text-[15px] font-semibold text-[#1F2937] mb-2 block">
                         Cancellation Policy
                       </Label>
-                      <Select>
+                      <Select value={cancellationPolicy} onValueChange={setCancellationPolicy}>
                         <SelectTrigger className="h-[52px] text-base border-2 border-[#E5E7EB] rounded-[10px]">
                           <SelectValue placeholder="Select..." />
                         </SelectTrigger>
@@ -549,6 +704,8 @@ export function CreateEditServiceListing() {
                       Special Requirements or Notes
                     </Label>
                     <Textarea
+                      value={specialRequirements}
+                      onChange={(e) => setSpecialRequirements(e.target.value)}
                       placeholder="e.g., Customer must provide parking, access to water..."
                       className="min-h-[120px] text-base border-2 border-[#E5E7EB] rounded-[10px] resize-none"
                       maxLength={500}
@@ -564,6 +721,7 @@ export function CreateEditServiceListing() {
                 variant="outline"
                 onClick={() => navigate(`/admin/michelle-profiles/${profileId}/listings`)}
                 className="h-11 px-6"
+                disabled={isSaving}
               >
                 Cancel
               </Button>
@@ -573,14 +731,23 @@ export function CreateEditServiceListing() {
                   variant="outline"
                   onClick={() => handleSave(false)}
                   className="h-11 px-8"
+                  disabled={isSaving}
                 >
+                  {isSaving ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : null}
                   Save Listing
                 </Button>
                 <Button
                   onClick={() => handleSave(true)}
                   className="h-11 px-8 bg-[#1F2937] hover:bg-[#111827] text-white font-semibold"
+                  disabled={isSaving}
                 >
-                  <Check className="w-[18px] h-[18px] mr-2" />
+                  {isSaving ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Check className="w-[18px] h-[18px] mr-2" />
+                  )}
                   Save & Activate
                 </Button>
               </div>

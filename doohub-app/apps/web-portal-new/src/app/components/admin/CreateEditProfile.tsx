@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -11,7 +11,9 @@ import {
   Globe,
   Star,
   Check,
+  Loader2,
 } from "lucide-react";
+import { api } from "../../../services/api";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -62,16 +64,48 @@ export function CreateEditProfile() {
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [logoPreview, setLogoPreview] = useState("");
-  const [regions, setRegions] = useState<RegionWithCountry[]>([
-    { id: "1", name: "New York, NY", countryCode: "US", countryName: "United States", countryFlag: "🇺🇸", isActive: true },
-    { id: "2", name: "Los Angeles, CA", countryCode: "US", countryName: "United States", countryFlag: "🇺🇸", isActive: true },
-    { id: "3", name: "Chicago, IL", countryCode: "US", countryName: "United States", countryFlag: "🇺🇸", isActive: false },
-  ]);
+  const [regions, setRegions] = useState<RegionWithCountry[]>([]);
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [showBadge, setShowBadge] = useState(true);
   const [activateNow, setActivateNow] = useState("active");
   const [showRegionModal, setShowRegionModal] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+
+  // Fetch profile data when editing
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!isEditing || !id) return;
+      setIsLoadingProfile(true);
+      try {
+        const response: any = await api.get(`/admin/michelle-profiles/${id}`);
+        const profile = response?.data || response;
+        setBusinessName(profile.businessName || profile.name || '');
+        setCategory(profile.category || '');
+        setDescription(profile.description || '');
+        setLogoPreview(profile.logoUrl || profile.logo || '');
+        setPhone(profile.phone || '');
+        setEmail(profile.email || '');
+        setShowBadge(profile.showBadge ?? true);
+        setActivateNow(profile.status === 'active' ? 'active' : 'inactive');
+        // Map regions from API response
+        const regionData = profile.regions || [];
+        setRegions(regionData.map((r: any) => ({
+          id: r.id || r.regionId,
+          name: r.name || r.regionName || `${r.city}, ${r.state}`,
+          countryCode: r.countryCode || 'US',
+          countryName: r.countryName || 'United States',
+          countryFlag: r.countryFlag || '🇺🇸',
+          isActive: r.isActive ?? true,
+        })));
+      } catch (err) {
+        console.error('Failed to fetch profile:', err);
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+    fetchProfile();
+  }, [isEditing, id]);
 
   const progress = (currentStep / 4) * 100;
 
@@ -114,9 +148,36 @@ export function CreateEditProfile() {
     }
   };
 
-  const handleSave = () => {
-    // Save logic here
-    navigate("/admin/michelle-profiles");
+  const handleSave = async () => {
+    try {
+      const profileData = {
+        businessName,
+        category,
+        description,
+        logoUrl: logoPreview,
+        phone,
+        email,
+        showBadge,
+        status: activateNow,
+        regions: regions.map(r => ({
+          id: r.id,
+          name: r.name,
+          countryCode: r.countryCode,
+          countryName: r.countryName,
+          countryFlag: r.countryFlag,
+          isActive: r.isActive,
+        })),
+      };
+
+      if (isEditing && id) {
+        await api.put(`/admin/michelle-profiles/${id}`, profileData);
+      } else {
+        await api.post('/admin/michelle-profiles', profileData);
+      }
+      navigate("/admin/michelle-profiles");
+    } catch (err) {
+      console.error('Failed to save profile:', err);
+    }
   };
 
   const getStepTitle = () => {

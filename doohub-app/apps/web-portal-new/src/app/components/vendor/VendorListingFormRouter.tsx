@@ -13,19 +13,6 @@ import { VendorRideAssistanceForm } from "./listing-forms/VendorRideAssistanceFo
 import { VendorCompanionshipSupportForm } from "./listing-forms/VendorCompanionshipSupportForm";
 import { api } from "../../../services/api";
 
-// Store category mapping
-const storeDataMap: Record<string, { category: string; name: string }> = {
-  "1": { category: "Cleaning Services", name: "Sparkle Clean Co." },
-  "2": { category: "Handyman Services", name: "Fix-It Pro Services" },
-  "3": { category: "Groceries", name: "Fresh Harvest Groceries" },
-  "4": { category: "Food", name: "Mama's Kitchen" },
-  "5": { category: "Beauty Services", name: "Glam Beauty Studio" },
-  "6": { category: "Beauty Products", name: "Pure Skincare Boutique" },
-  "7": { category: "Rental Properties", name: "Urban Stays Properties" },
-  "8": { category: "Ride Assistance", name: "CareWheels Transportation" },
-  "9": { category: "Companionship Support", name: "Caring Companions" },
-};
-
 // Map category to API endpoint type
 const categoryToApiType: Record<string, string> = {
   "Cleaning Services": "cleaning",
@@ -74,11 +61,9 @@ export function VendorListingFormRouter() {
         category: store.category || "Cleaning Services",
         name: store.name || "Store",
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch store:", err);
-      // Fallback to mock data
-      const fallback = storeDataMap[storeId] || { category: "Cleaning Services", name: "Store" };
-      setStoreData(fallback);
+      setError(err?.response?.data?.error || "Failed to load store data. Please try again.");
     }
   }, [storeId]);
 
@@ -282,12 +267,21 @@ export function VendorListingFormRouter() {
             <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
             </svg>
-            <div>
+            <div className="flex-1">
               <p className="text-sm font-medium text-red-800">Error</p>
               <p className="text-sm text-red-700">{error}</p>
             </div>
             <button
-              className="ml-auto text-red-500 hover:text-red-700"
+              className="px-3 py-1 text-sm font-medium text-red-700 hover:text-red-800 hover:bg-red-100 rounded"
+              onClick={() => {
+                setError(null);
+                fetchStoreData();
+              }}
+            >
+              Try Again
+            </button>
+            <button
+              className="text-red-500 hover:text-red-700"
               onClick={() => setError(null)}
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">

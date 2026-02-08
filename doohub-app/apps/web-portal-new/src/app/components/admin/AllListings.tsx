@@ -72,204 +72,6 @@ interface Listing {
   flaggedAt?: string;
 }
 
-// Mock data
-const mockListings: Listing[] = [
-  {
-    id: "1",
-    name: "Deep Cleaning Service",
-    vendorId: "1",
-    vendorName: "Sarah's Cleaning Co.",
-    category: "Cleaning Services",
-    status: "active",
-    price: "$120 flat rate",
-    regions: ["New York, NY", "Brooklyn, NY"],
-    bookings: 89,
-    rating: 4.8,
-    reviewCount: 34,
-    createdAt: "2024-10-15",
-    updatedAt: "2026-01-03",
-    views: 1234,
-  },
-  {
-    id: "2",
-    name: "Plumbing Repair Services",
-    vendorId: "2",
-    vendorName: "QuickFix Handyman",
-    category: "Handyman Services",
-    status: "active",
-    price: "$85/hour",
-    regions: ["Los Angeles, CA"],
-    bookings: 156,
-    rating: 4.9,
-    reviewCount: 67,
-    createdAt: "2024-09-20",
-    updatedAt: "2026-01-05",
-    views: 2341,
-  },
-  {
-    id: "3",
-    name: "Fresh Organic Groceries",
-    vendorId: "3",
-    vendorName: "Green Valley Grocers",
-    category: "Grocery",
-    status: "inactive",
-    price: "$50-$200",
-    regions: ["Seattle, WA"],
-    bookings: 23,
-    rating: 4.2,
-    reviewCount: 12,
-    createdAt: "2024-12-28",
-    updatedAt: "2025-12-30",
-    views: 456,
-  },
-  {
-    id: "4",
-    name: "Premium Hair Styling",
-    vendorId: "4",
-    vendorName: "Beauty Bliss Salon",
-    category: "Beauty Services",
-    status: "flagged",
-    price: "$45-$150",
-    regions: ["New York, NY"],
-    bookings: 67,
-    rating: 3.9,
-    reviewCount: 28,
-    createdAt: "2025-01-01",
-    updatedAt: "2026-01-04",
-    views: 789,
-    flagReason: "Customer complaint - misleading description",
-    flaggedAt: "2026-01-04",
-  },
-  {
-    id: "5",
-    name: "Smartphone Repair",
-    vendorId: "5",
-    vendorName: "Tech Repair Pro",
-    category: "Handyman Services",
-    status: "active",
-    price: "$50-$150",
-    regions: ["New York, NY", "Jersey City, NJ"],
-    bookings: 234,
-    rating: 4.6,
-    reviewCount: 89,
-    createdAt: "2024-08-10",
-    updatedAt: "2026-01-02",
-    views: 3456,
-  },
-  {
-    id: "6",
-    name: "Fresh Organic Produce Box",
-    vendorId: "7",
-    vendorName: "Farm Fresh Direct",
-    category: "Grocery",
-    status: "active",
-    price: "$50-$200",
-    regions: ["Portland, OR"],
-    bookings: 45,
-    rating: 4.7,
-    reviewCount: 31,
-    createdAt: "2024-09-01",
-    updatedAt: "2026-01-06",
-    views: 678,
-  },
-  {
-    id: "7",
-    name: "Chicken Tikka Masala",
-    vendorId: "11",
-    vendorName: "Golden Spoon Restaurant",
-    category: "Food",
-    status: "active",
-    price: "$15.99",
-    regions: ["New York, NY", "Brooklyn, NY"],
-    bookings: 267,
-    rating: 5.0,
-    reviewCount: 189,
-    createdAt: "2024-09-20",
-    updatedAt: "2026-01-05",
-    views: 2876,
-  },
-  {
-    id: "8",
-    name: "Spicy Thai Basil Chicken",
-    vendorId: "12",
-    vendorName: "Taste of India Kitchen",
-    category: "Food",
-    status: "active",
-    price: "$13.99",
-    regions: ["Los Angeles, CA"],
-    bookings: 198,
-    rating: 4.9,
-    reviewCount: 145,
-    createdAt: "2024-11-05",
-    updatedAt: "2026-01-04",
-    views: 1987,
-  },
-  {
-    id: "9",
-    name: "Vegan Buddha Bowl",
-    vendorId: "13",
-    vendorName: "Vegan Delights Cafe",
-    category: "Food",
-    status: "active",
-    price: "$12.99",
-    regions: ["San Francisco, CA"],
-    bookings: 145,
-    rating: 4.7,
-    reviewCount: 98,
-    createdAt: "2024-10-12",
-    updatedAt: "2026-01-03",
-    views: 1234,
-  },
-  {
-    id: "10",
-    name: "Luxury Downtown Apartment",
-    vendorId: "6",
-    vendorName: "Cozy Home Rentals",
-    category: "Rental Properties",
-    status: "active",
-    price: "$250/night",
-    regions: ["Manhattan, New York, NY"],
-    bookings: 45,
-    rating: 4.9,
-    reviewCount: 67,
-    createdAt: "2024-06-15",
-    updatedAt: "2026-01-07",
-    views: 3456,
-  },
-  {
-    id: "11",
-    name: "Cozy Brooklyn Brownstone",
-    vendorId: "6",
-    vendorName: "Cozy Home Rentals",
-    category: "Rental Properties",
-    status: "active",
-    price: "$320/night",
-    regions: ["Brooklyn, New York, NY"],
-    bookings: 38,
-    rating: 4.8,
-    reviewCount: 52,
-    createdAt: "2024-06-20",
-    updatedAt: "2026-01-06",
-    views: 2987,
-  },
-  {
-    id: "12",
-    name: "Modern Studio with River View",
-    vendorId: "6",
-    vendorName: "Cozy Home Rentals",
-    category: "Rental Properties",
-    status: "active",
-    price: "$180/night",
-    regions: ["Queens, New York, NY"],
-    bookings: 62,
-    rating: 4.7,
-    reviewCount: 89,
-    createdAt: "2024-07-01",
-    updatedAt: "2026-01-05",
-    views: 4321,
-  },
-];
-
 const getCategoryIcon = (category: string) => {
   const icons: Record<string, string> = {
     "Cleaning Services": "🧹",
@@ -713,7 +515,8 @@ export function AllListings() {
   };
 
   // State
-  const [listings, setListings] = useState<Listing[]>(mockListings);
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [vendorFilter, setVendorFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -724,38 +527,42 @@ export function AllListings() {
   const [selectedListings, setSelectedListings] = useState<string[]>([]);
   const [showFlaggedAlert, setShowFlaggedAlert] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   const itemsPerPage = 20;
+
+  // Vendors and regions for filters
+  const [vendors, setVendors] = useState<{ id: string; name: string }[]>([]);
+  const [regions, setRegions] = useState<{ id: string; name: string }[]>([]);
 
   // Fetch listings from API
   const fetchListings = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const response = await api.getListings();
       const listingData = Array.isArray(response) ? response : (response as any)?.data || [];
-      if (listingData.length > 0) {
-        setListings(listingData.map((l: any) => ({
-          id: l.id,
-          name: l.title || l.name || 'Unknown',
-          vendorId: l.vendorId || l.storeId,
-          vendorName: l.vendorName || l.storeName || 'Unknown Vendor',
-          category: l.category || l.type || 'General',
-          status: (l.status || 'active').toLowerCase() as Listing['status'],
-          price: l.price || 0,
-          priceUnit: l.priceUnit || 'per service',
-          bookings: l.bookings || l.bookingCount || 0,
-          rating: l.rating || 0,
-          reviewCount: l.reviewCount || 0,
-          imageUrl: l.imageUrl || l.image || l.images?.[0],
-          regions: l.regions || [],
-          createdAt: l.createdAt || new Date().toISOString(),
-          flagReason: l.flagReason,
-          flaggedAt: l.flaggedAt,
-        })));
-      }
+      setListings(listingData.map((l: any) => ({
+        id: l.id,
+        name: l.title || l.name || 'Unknown',
+        vendorId: l.vendorId || l.storeId,
+        vendorName: l.vendorName || l.storeName || 'Unknown Vendor',
+        category: l.category || l.type || 'General',
+        status: (l.status || 'active').toLowerCase() as Listing['status'],
+        price: l.price || 0,
+        priceUnit: l.priceUnit || 'per service',
+        bookings: l.bookings || l.bookingCount || 0,
+        rating: l.rating || 0,
+        reviewCount: l.reviewCount || 0,
+        imageUrl: l.imageUrl || l.image || l.images?.[0],
+        regions: l.regions || [],
+        createdAt: l.createdAt || new Date().toISOString(),
+        flagReason: l.flagReason,
+        flaggedAt: l.flaggedAt,
+      })));
     } catch (err: any) {
-      console.error('Failed to fetch listings from API, using mock data:', err);
+      console.error('Failed to fetch listings:', err);
+      setError(err?.response?.data?.error || 'Failed to load listings. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -765,6 +572,40 @@ export function AllListings() {
   useEffect(() => {
     fetchListings();
   }, [fetchListings]);
+
+  // Fetch vendors for filter dropdown
+  useEffect(() => {
+    const fetchVendors = async () => {
+      try {
+        const response: any = await api.get('/admin/michelle-profiles');
+        const vendorData = Array.isArray(response) ? response : response?.data || [];
+        setVendors(vendorData.map((v: any) => ({
+          id: v.id,
+          name: v.businessName || v.name || 'Unknown Vendor',
+        })));
+      } catch (err) {
+        console.error('Failed to fetch vendors for filter:', err);
+      }
+    };
+    fetchVendors();
+  }, []);
+
+  // Fetch regions for filter dropdown
+  useEffect(() => {
+    const fetchRegions = async () => {
+      try {
+        const response: any = await api.get('/regions');
+        const regionData = Array.isArray(response) ? response : response?.data || [];
+        setRegions(regionData.map((r: any) => ({
+          id: r.id || r.name,
+          name: r.name || r.city || `${r.city}, ${r.state}`,
+        })));
+      } catch (err) {
+        console.error('Failed to fetch regions for filter:', err);
+      }
+    };
+    fetchRegions();
+  }, []);
 
   // Helper to get listing type for API call
   const getListingType = (category: string): string => {
@@ -1151,12 +992,11 @@ export function AllListings() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Vendors</SelectItem>
-                  <SelectItem value="1">Sarah's Cleaning Co.</SelectItem>
-                  <SelectItem value="2">QuickFix Handyman</SelectItem>
-                  <SelectItem value="3">Green Valley Grocers</SelectItem>
-                  <SelectItem value="4">Beauty Bliss Salon</SelectItem>
-                  <SelectItem value="5">Tech Repair Pro</SelectItem>
-                  <SelectItem value="7">Farm Fresh Direct</SelectItem>
+                  {vendors.map((vendor) => (
+                    <SelectItem key={vendor.id} value={vendor.id}>
+                      {vendor.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 
@@ -1198,11 +1038,11 @@ export function AllListings() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Regions</SelectItem>
-                  <SelectItem value="New York, NY">New York, NY</SelectItem>
-                  <SelectItem value="Brooklyn, NY">Brooklyn, NY</SelectItem>
-                  <SelectItem value="Los Angeles, CA">Los Angeles, CA</SelectItem>
-                  <SelectItem value="Chicago, IL">Chicago, IL</SelectItem>
-                  <SelectItem value="Jersey City, NJ">Jersey City, NJ</SelectItem>
+                  {regions.map((region) => (
+                    <SelectItem key={region.id} value={region.name}>
+                      {region.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1287,8 +1127,28 @@ export function AllListings() {
             )}
           </div>
 
+          {/* Error Banner */}
+          {error && (
+            <div className="mb-4 p-4 rounded-lg bg-[#FEE2E2] border border-[#DC2626] text-[#991B1B] flex items-center justify-between">
+              <span className="text-sm font-medium">{error}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchListings}
+                className="ml-4 border-[#DC2626] text-[#DC2626] hover:bg-[#FEE2E2]"
+              >
+                Try Again
+              </Button>
+            </div>
+          )}
+
           {/* Listing Cards */}
-          {paginatedListings.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="w-12 h-12 border-4 border-[#E5E7EB] border-t-[#1F2937] rounded-full animate-spin mb-4" />
+              <p className="text-[15px] text-[#6B7280]">Loading listings...</p>
+            </div>
+          ) : paginatedListings.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
               <div className="w-[120px] h-[120px] rounded-full bg-[#F8F9FA] flex items-center justify-center mb-6">
                 <Package className="w-16 h-16 text-[#9CA3AF]" />

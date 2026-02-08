@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Search, User, Calendar, DollarSign, Package, Clock, Check, ChevronRight } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Search, User, Calendar, DollarSign, Package, Clock, Check, ChevronRight, AlertCircle, Loader2 } from "lucide-react";
 import { parseISO, isWithinInterval } from "date-fns";
 import { VendorSidebar } from "./VendorSidebar";
 import { VendorTopNav } from "./VendorTopNav";
@@ -14,8 +14,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
+import { useAuth } from "../../contexts/AuthContext";
+import { api } from "../../../services/api";
 
-type OrderStatus = "ACCEPTED" | "IN_PROGRESS" | "COMPLETED";
+type OrderStatus = "PENDING" | "ACCEPTED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "DECLINED";
 
 interface OrderItem {
   name: string;
@@ -59,6 +61,7 @@ interface Order {
 }
 
 export function VendorOrders() {
+  const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     typeof window !== "undefined" && window.innerWidth >= 1024 ? false : true
@@ -78,234 +81,122 @@ export function VendorOrders() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
-  // Mock orders data - 9 entries, one for each category
-  const [orders] = useState<Order[]>([
-    // Cleaning Service (Accepted)
-    {
-      id: "1",
-      orderNumber: "CLN-12345",
-      storeName: "CleanCo Services",
-      customerName: "Sarah Johnson",
-      customerEmail: "sarah.j@email.com",
-      customerPhone: "(555) 123-4567",
-      total: 150.0,
-      date: "2026-01-08",
-      time: "10:00 AM",
-      status: "ACCEPTED",
-      serviceName: "Deep Home Cleaning",
-      type: "service",
-      serviceDetails: {
-        service: "Deep Home Cleaning",
-        category: "Residential Cleaning",
-        scheduledDate: "January 8, 2026",
-        time: "10:00 AM - 2:00 PM",
-        duration: "4 hours",
-        serviceAddress: "123 Oak Street, San Francisco, CA 94102",
-        specialInstructions: "Please focus on kitchen and bathrooms",
-      },
-    },
-    // Beauty Service (Accepted)
-    {
-      id: "2",
-      orderNumber: "BTY-78901",
-      storeName: "Beauty by Michelle",
-      customerName: "Jessica Martinez",
-      customerEmail: "j.martinez@email.com",
-      customerPhone: "(555) 456-7890",
-      total: 120.0,
-      date: "2026-01-07",
-      time: "3:00 PM",
-      status: "ACCEPTED",
-      serviceName: "Hair & Makeup Package",
-      type: "service",
-      serviceDetails: {
-        service: "Hair & Makeup Package",
-        category: "Beauty Services",
-        scheduledDate: "January 7, 2026",
-        time: "3:00 PM - 5:00 PM",
-        duration: "2 hours",
-        serviceAddress: "321 Elm Street, San Francisco, CA 94105",
-        specialInstructions: "Special occasion – wedding guest",
-      },
-    },
-    // Groceries (Accepted)
-    {
-      id: "3",
-      orderNumber: "GRO-45678",
-      storeName: "Fresh Market",
-      customerName: "Emily Rodriguez",
-      customerEmail: "emily.r@email.com",
-      customerPhone: "(555) 345-6789",
-      total: 89.5,
-      date: "2026-01-08",
-      time: "2:00 PM",
-      status: "ACCEPTED",
-      serviceName: "Grocery Delivery",
-      itemCount: 5,
-      type: "delivery",
-      deliveryDetails: {
-        items: [
-          { name: "Organic Apples (2lb)", quantity: 1, price: 8.99 },
-          { name: "Fresh Salmon Fillet", quantity: 2, price: 24.99 },
-          { name: "Whole Grain Bread", quantity: 1, price: 5.99 },
-          { name: "Greek Yogurt (6-pack)", quantity: 1, price: 7.99 },
-          { name: "Mixed Salad Greens", quantity: 2, price: 6.99 },
-        ],
-        deliveryAddress: "789 Pine Avenue, San Francisco, CA 94104",
-        deliveryWindow: "2:00 PM - 4:00 PM",
-        specialInstructions: "Please leave at front door if no answer",
-      },
-    },
-    // Handyman (In Progress)
-    {
-      id: "4",
-      orderNumber: "HND-23456",
-      storeName: "Handyman Services",
-      customerName: "Michael Brown",
-      customerEmail: "m.brown@email.com",
-      customerPhone: "(555) 234-5678",
-      total: 200.0,
-      date: "2026-01-07",
-      time: "9:00 AM",
-      status: "IN_PROGRESS",
-      serviceName: "Bathroom Faucet Repair",
-      type: "service",
-      serviceDetails: {
-        service: "Bathroom Faucet Repair",
-        category: "Handyman Services",
-        scheduledDate: "January 7, 2026",
-        time: "9:00 AM - 11:00 AM",
-        duration: "2 hours",
-        serviceAddress: "456 Downtown St, San Francisco, CA 94103",
-        specialInstructions: "Leaking faucet in master bathroom",
-      },
-    },
-    // Ride Assistance (In Progress)
-    {
-      id: "5",
-      orderNumber: "RDE-89012",
-      storeName: "Safe Rides Transport",
-      customerName: "Robert Wilson",
-      customerEmail: "r.wilson@email.com",
-      customerPhone: "(555) 567-8901",
-      total: 35.0,
-      date: "2026-01-07",
-      time: "11:30 AM",
-      status: "IN_PROGRESS",
-      serviceName: "Medical Appointment Transport",
-      type: "service",
-      serviceDetails: {
-        service: "Medical Appointment Transport",
-        category: "Ride Assistance",
-        scheduledDate: "January 7, 2026",
-        time: "11:30 AM - 1:00 PM",
-        duration: "1.5 hours",
-        serviceAddress: "Pick-up: 789 Market St, Drop-off: Medical Center",
-        specialInstructions: "Patient requires wheelchair assistance",
-      },
-    },
-    // Companionship (In Progress)
-    {
-      id: "6",
-      orderNumber: "CMP-34567",
-      storeName: "Caring Companions",
-      customerName: "Linda Davis",
-      customerEmail: "l.davis@email.com",
-      customerPhone: "(555) 678-9012",
-      total: 85.0,
-      date: "2026-01-07",
-      time: "2:00 PM",
-      status: "IN_PROGRESS",
-      serviceName: "Afternoon Companionship",
-      type: "service",
-      serviceDetails: {
-        service: "Afternoon Companionship",
-        category: "Companionship Support",
-        scheduledDate: "January 7, 2026",
-        time: "2:00 PM - 5:00 PM",
-        duration: "3 hours",
-        serviceAddress: "234 Sunset Blvd, San Francisco, CA 94122",
-        specialInstructions: "Light conversation, reading, and assistance with puzzles",
-      },
-    },
-    // Rental Property (Completed)
-    {
-      id: "7",
-      orderNumber: "RNT-67890",
-      storeName: "Prime Rentals",
-      customerName: "James Taylor",
-      customerEmail: "j.taylor@email.com",
-      customerPhone: "(555) 789-0123",
-      total: 2500.0,
-      date: "2026-01-05",
-      time: "10:00 AM",
-      status: "COMPLETED",
-      serviceName: "Monthly Apartment Rental",
-      type: "service",
-      serviceDetails: {
-        service: "Monthly Apartment Rental",
-        category: "Rental Properties",
-        scheduledDate: "January 5, 2026",
-        time: "10:00 AM - 11:00 AM",
-        duration: "1 hour (viewing)",
-        serviceAddress: "567 Bay Street, Apt 3B, San Francisco, CA 94111",
-        specialInstructions: "First month plus deposit paid",
-      },
-    },
-    // Food Delivery (Completed)
-    {
-      id: "8",
-      orderNumber: "FOOD-12309",
-      storeName: "Downtown Delivery",
-      customerName: "Amanda Chen",
-      customerEmail: "a.chen@email.com",
-      customerPhone: "(555) 890-1234",
-      total: 45.75,
-      date: "2026-01-06",
-      time: "7:00 PM",
-      status: "COMPLETED",
-      serviceName: "Restaurant Delivery",
-      itemCount: 3,
-      type: "delivery",
-      deliveryDetails: {
-        items: [
-          { name: "Chicken Tikka Masala", quantity: 1, price: 16.99 },
-          { name: "Garlic Naan (2pc)", quantity: 1, price: 4.99 },
-          { name: "Mango Lassi", quantity: 2, price: 5.99 },
-        ],
-        deliveryAddress: "890 Mission Street, San Francisco, CA 94110",
-        deliveryWindow: "7:00 PM - 7:30 PM",
-        specialInstructions: "Please ring doorbell twice",
-      },
-    },
-    // Beauty Products (Completed)
-    {
-      id: "9",
-      orderNumber: "BPR-56789",
-      storeName: "Beauty Essentials",
-      customerName: "Sophie Anderson",
-      customerEmail: "s.anderson@email.com",
-      customerPhone: "(555) 901-2345",
-      total: 127.50,
-      date: "2026-01-05",
-      time: "3:00 PM",
-      status: "COMPLETED",
-      serviceName: "Beauty Products Order",
-      itemCount: 4,
-      type: "delivery",
-      deliveryDetails: {
-        items: [
-          { name: "Hydrating Face Serum", quantity: 1, price: 45.0 },
-          { name: "Vitamin C Moisturizer", quantity: 1, price: 38.0 },
-          { name: "Eye Cream", quantity: 1, price: 28.5 },
-          { name: "Face Mask Set (3pc)", quantity: 1, price: 16.0 },
-        ],
-        deliveryAddress: "123 Valencia Street, San Francisco, CA 94107",
-        deliveryWindow: "3:00 PM - 5:00 PM",
-        specialInstructions: "Leave package with building concierge",
-      },
-    },
-  ]);
+  // API states
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
+
+  // Get vendor name
+  const vendorName = user?.profile?.firstName || user?.name?.split(" ")[0] || "Vendor";
+
+  // Fetch orders from API
+  const fetchOrders = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response: any = await api.getVendorBookings();
+
+      if (response.success && response.data) {
+        // Map API response to Order interface
+        const mappedOrders: Order[] = response.data.map((booking: any) => {
+          const customerProfile = booking.user?.profile || {};
+          const customerName = customerProfile.firstName
+            ? `${customerProfile.firstName} ${customerProfile.lastName || ""}`.trim()
+            : booking.user?.email?.split("@")[0] || "Customer";
+
+          // Get listing info based on category
+          const listing =
+            booking.cleaningListing ||
+            booking.handymanListing ||
+            booking.beautyListing ||
+            booking.rentalListing ||
+            booking.caregivingListing ||
+            {};
+
+          return {
+            id: booking.id,
+            orderNumber: `ORD-${booking.id.slice(-6).toUpperCase()}`,
+            storeName: booking.category || "Service",
+            customerName,
+            customerEmail: booking.user?.email || "",
+            customerPhone: booking.user?.phone || customerProfile.phone || "",
+            total: Number(booking.total) || 0,
+            date: new Date(booking.scheduledDate || booking.createdAt).toISOString().split("T")[0],
+            time: booking.scheduledTime || new Date(booking.createdAt).toLocaleTimeString("en-US", {
+              hour: "numeric",
+              minute: "2-digit",
+              hour12: true,
+            }),
+            status: booking.status,
+            serviceName: listing.title || listing.name || booking.category || "Service",
+            type: "service" as const,
+            serviceDetails: {
+              service: listing.title || listing.name || "Service",
+              category: booking.category || "Service",
+              scheduledDate: new Date(booking.scheduledDate || booking.createdAt).toLocaleDateString("en-US", {
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              }),
+              time: booking.scheduledTime || "TBD",
+              duration: booking.duration ? `${booking.duration} minutes` : "TBD",
+              serviceAddress: booking.address
+                ? `${booking.address.street}, ${booking.address.city}, ${booking.address.state} ${booking.address.zipCode}`
+                : "Address not provided",
+              specialInstructions: booking.specialInstructions || "None",
+            },
+          };
+        });
+
+        setOrders(mappedOrders);
+
+        // Set status counts from API response
+        if (response.counts) {
+          setStatusCounts(response.counts);
+        }
+      }
+    } catch (err: any) {
+      console.error("Failed to fetch orders:", err);
+      setError(err.response?.data?.error || "Failed to load orders. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
+  // Handle status update
+  const handleStatusUpdate = async (orderId: string, newStatus: "IN_PROGRESS" | "COMPLETED") => {
+    setIsUpdatingStatus(orderId);
+
+    try {
+      await api.updateBookingStatus(orderId, newStatus);
+
+      // Update local state
+      setOrders(prev =>
+        prev.map(order =>
+          order.id === orderId
+            ? { ...order, status: newStatus }
+            : order
+        )
+      );
+
+      // Close modal if open
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder(null);
+      }
+    } catch (err: any) {
+      console.error("Failed to update status:", err);
+      setError(err.response?.data?.error || "Failed to update order status.");
+    } finally {
+      setIsUpdatingStatus(null);
+    }
+  };
 
   // Get unique stores
   const stores = Array.from(new Set(orders.map((order) => order.storeName)));
@@ -348,10 +239,20 @@ export function VendorOrders() {
   }, {} as Record<string, Order[]>);
 
   const getCountsByStatus = () => {
+    // Use API counts if available, otherwise calculate from local orders
+    if (Object.keys(statusCounts).length > 0) {
+      return {
+        ACCEPTED: statusCounts.ACCEPTED || 0,
+        IN_PROGRESS: statusCounts.IN_PROGRESS || 0,
+        COMPLETED: statusCounts.COMPLETED || 0,
+        PENDING: statusCounts.PENDING || 0,
+      };
+    }
     return {
       ACCEPTED: orders.filter((o) => o.status === "ACCEPTED").length,
       IN_PROGRESS: orders.filter((o) => o.status === "IN_PROGRESS").length,
       COMPLETED: orders.filter((o) => o.status === "COMPLETED").length,
+      PENDING: orders.filter((o) => o.status === "PENDING").length,
     };
   };
 
@@ -359,13 +260,17 @@ export function VendorOrders() {
 
   const handleMarkInProgress = (orderId: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    // Handle mark in progress logic
-    console.log("Mark in progress:", orderId);
+    // Determine the new status based on current status
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+
+    const newStatus = order.status === "ACCEPTED" ? "IN_PROGRESS" : "COMPLETED";
+    handleStatusUpdate(orderId, newStatus);
   };
 
   return (
     <div className="min-h-screen bg-white">
-      <VendorTopNav onMenuClick={handleSidebarToggle} vendorName="John Smith" />
+      <VendorTopNav onMenuClick={handleSidebarToggle} vendorName={vendorName} />
       <VendorSidebar
         isOpen={sidebarOpen}
         isCollapsed={sidebarCollapsed}
@@ -388,6 +293,23 @@ export function VendorOrders() {
         `}
       >
         <div className="max-w-[1400px] mx-auto">
+          {/* Error Banner */}
+          {error && (
+            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-amber-800">Notice</p>
+                <p className="text-sm text-amber-700">{error}</p>
+              </div>
+              <button
+                className="text-amber-500 hover:text-amber-700"
+                onClick={() => setError(null)}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* Page Header */}
           <div className="mb-6">
             <h1 className="text-2xl sm:text-[28px] lg:text-[32px] font-bold text-[#1F2937] mb-2">

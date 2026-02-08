@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { api } from "../../../services/api";
 import {
   Search,
   ChevronRight,
@@ -129,53 +130,103 @@ export function MichelleOrders() {
     to: parseISO("2026-01-31"),
   });
 
-  // Mock orders data
-  const [orders, setOrders] = useState<Order[]>([
-    // ========== ACCEPTED ORDERS (8 stores) ==========
-    // CleanCo Services - Accepted
-    {
-      id: "1",
-      orderNumber: "CLN-12345",
-      storeId: "cleanco",
-      storeName: "CleanCo Services",
-      customerName: "Sarah Johnson",
-      customerEmail: "sarah.j@email.com",
-      customerPhone: "(555) 123-4567",
-      total: 150,
-      date: "2026-01-07",
-      time: "10:00 AM",
-      status: "accepted",
-      category: "service",
-      serviceName: "Deep Home Cleaning",
-      serviceType: "Residential Cleaning",
-      scheduledDate: "2026-01-09",
-      scheduledTime: "10:00 AM - 2:00 PM",
-      serviceAddress: "123 Oak Street, San Francisco, CA 94102",
-      duration: "4 hours",
-      specialInstructions: "Please focus on kitchen and bathrooms",
-    },
-    // Beauty by Michelle - Accepted
-    {
-      id: "2",
-      orderNumber: "BTY-78901",
-      storeId: "beauty-michelle",
-      storeName: "Beauty by Michelle",
-      customerName: "Jessica Martinez",
-      customerEmail: "j.martinez@email.com",
-      customerPhone: "(555) 456-7890",
-      total: 120,
-      date: "2026-01-07",
-      time: "2:00 PM",
-      status: "accepted",
-      category: "service",
-      serviceName: "Hair & Makeup Package",
-      serviceType: "Beauty Services",
-      scheduledDate: "2026-01-08",
-      scheduledTime: "3:00 PM - 5:00 PM",
-      serviceAddress: "321 Elm Street, San Francisco, CA 94105",
-      duration: "2 hours",
-      specialInstructions: "Special occasion - wedding guest",
-    },
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch Michelle orders from API
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const response: any = await api.getOrders({ 
+          isMichelle: true,
+          status: activeTab === "accepted" ? "ACCEPTED" : activeTab === "in-progress" ? "IN_PROGRESS" : "COMPLETED"
+        });
+        const mappedOrders: Order[] = (response.orders || response || []).map((order: any) => {
+          const baseOrder = {
+            id: order.id,
+            orderNumber: order.orderNumber || order.id,
+            storeId: order.storeId || order.store?.id,
+            storeName: order.storeName || order.store?.name,
+            customerName: order.customer?.name || order.customerName,
+            customerEmail: order.customer?.email || order.customerEmail,
+            customerPhone: order.customer?.phone || order.customerPhone,
+            total: order.total || 0,
+            date: order.createdAt || order.date,
+            time: order.scheduledTime || "TBD",
+            status: (order.status?.toLowerCase() || "accepted") as OrderStatus,
+          };
+
+          // Map based on order type/category
+          if (order.items?.length) {
+            // Grocery/Food order
+            return {
+              ...baseOrder,
+              category: (order.category || "grocery") as "grocery" | "food",
+              items: order.items.map((item: any) => ({
+                name: item.name || item.listing?.name,
+                quantity: item.quantity || 1,
+                price: item.price || item.unitPrice || 0,
+              })),
+              itemCount: order.items.length,
+              deliveryAddress: order.address?.fullAddress || order.deliveryAddress || "",
+              deliveryWindow: order.deliveryWindow || "TBD",
+              specialInstructions: order.specialInstructions,
+            } as GroceryOrder;
+          } else if (order.propertyName || order.category === "rental") {
+            // Rental order
+            return {
+              ...baseOrder,
+              category: "rental" as const,
+              propertyName: order.propertyName || order.listing?.title,
+              propertyAddress: order.address?.fullAddress || order.propertyAddress || "",
+              checkInDate: order.checkInDate || order.startDate,
+              checkOutDate: order.checkOutDate || order.endDate,
+              numberOfGuests: order.numberOfGuests || 1,
+              specialRequests: order.specialRequests || order.specialInstructions,
+            } as RentalOrder;
+          } else if (order.productName || order.category === "product") {
+            // Product order
+            return {
+              ...baseOrder,
+              category: "product" as const,
+              productName: order.productName || order.listing?.title,
+              quantity: order.quantity || 1,
+              shippingAddress: order.address?.fullAddress || order.shippingAddress || "",
+              estimatedDelivery: order.estimatedDelivery || "TBD",
+            } as ProductOrder;
+          } else {
+            // Service order
+            return {
+              ...baseOrder,
+              category: "service" as const,
+              serviceName: order.listing?.title || order.serviceName,
+              serviceType: order.listing?.category || order.serviceType,
+              scheduledDate: order.scheduledDate || order.date,
+              scheduledTime: order.scheduledTime || "TBD",
+              serviceAddress: order.address?.fullAddress || order.serviceAddress || "",
+              duration: order.duration || "N/A",
+              specialInstructions: order.specialInstructions,
+            } as ServiceOrder;
+          }
+        });
+        setOrders(mappedOrders);
+      } catch (err: any) {
+        console.error("Failed to fetch Michelle orders:", err);
+        setError(err.response?.data?.error || "Failed to load orders. Please try again later.");
+        setOrders([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, [activeTab]);
+
+  // Get unique stores for filter with category
+  const storesMap = new Map<string, { id: string; name: string; category: OrderCategory }>();
     // Fresh Market - Accepted
     {
       id: "3",
@@ -716,12 +767,6 @@ export function MichelleOrders() {
       serviceType: "Pet Care Services",
       scheduledDate: "2026-01-05",
       scheduledTime: "9:00 AM - 6:00 PM",
-      serviceAddress: "678 Pacific Avenue, San Francisco, CA 94133",
-      duration: "9 hours",
-      specialInstructions: "Feed twice daily, medication in evening",
-    },
-  ]);
-
   // Get unique stores for filter with category
   const storesMap = new Map<string, { id: string; name: string; category: OrderCategory }>();
   orders.filter((order) => order.storeId !== "petcare-plus").forEach((order) => {

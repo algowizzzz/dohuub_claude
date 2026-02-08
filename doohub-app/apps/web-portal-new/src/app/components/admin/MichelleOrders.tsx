@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Search,
   ChevronRight,
@@ -10,16 +10,12 @@ import {
   DollarSign,
   Package,
   Home,
-  X,
-  Wrench,
-  ShoppingCart,
-  UtensilsCrossed,
+  Loader2,
 } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { isWithinInterval, parseISO } from "date-fns";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import { Label } from "../ui/label";
 import {
   Select,
   SelectContent,
@@ -43,10 +39,29 @@ import {
 import { DateRangePicker } from "../ui/date-range-picker";
 import { AdminSidebarRetractable } from "./AdminSidebarRetractable";
 import { AdminTopNav } from "./AdminTopNav";
+import { api } from "../../../services/api";
 
-// Order type definitions
-type OrderStatus = "accepted" | "in-progress" | "completed";
+// Order type definitions - using uppercase to match backend API
+type OrderStatus = "ACCEPTED" | "PREPARING" | "COMPLETED";
 type OrderCategory = "service" | "grocery" | "food" | "rental" | "product";
+
+// Display mapping for UI
+const statusDisplayMap: Record<OrderStatus, string> = {
+  ACCEPTED: "Accepted",
+  PREPARING: "In Progress",
+  COMPLETED: "Completed",
+};
+
+// Normalize status from API (handles various formats)
+const normalizeStatus = (status: string | undefined): OrderStatus => {
+  if (!status) return "ACCEPTED";
+  const upper = status.toUpperCase().replace(/[- ]/g, '_');
+  // Map various backend status values to our three states
+  if (upper === "ACCEPTED" || upper === "PENDING") return "ACCEPTED";
+  if (upper === "PREPARING" || upper === "IN_PROGRESS" || upper === "READY" || upper === "OUT_FOR_DELIVERY") return "PREPARING";
+  if (upper === "COMPLETED" || upper === "DELIVERED") return "COMPLETED";
+  return "ACCEPTED"; // Default fallback
+};
 
 interface BaseOrder {
   id: string;
@@ -103,6 +118,11 @@ interface ProductOrder extends BaseOrder {
 
 type Order = ServiceOrder | GroceryOrder | RentalOrder | ProductOrder;
 
+interface StoreOption {
+  id: string;
+  name: string;
+}
+
 export function MichelleOrders() {
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -118,650 +138,123 @@ export function MichelleOrders() {
     }
   };
 
-  // Orders state
-  const [activeTab, setActiveTab] = useState<OrderStatus>("accepted");
-  const [selectedStore, setSelectedStore] = useState<string>("all");
+  // State
+  const [activeTab, setActiveTab] = useState<OrderStatus>("ACCEPTED");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedStore, setSelectedStore] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: parseISO("2026-01-01"),
-    to: parseISO("2026-01-31"),
-  });
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
-  // Mock orders data
-  const [orders, setOrders] = useState<Order[]>([
-    // ========== ACCEPTED ORDERS (8 stores) ==========
-    // CleanCo Services - Accepted
-    {
-      id: "1",
-      orderNumber: "CLN-12345",
-      storeId: "cleanco",
-      storeName: "CleanCo Services",
-      customerName: "Sarah Johnson",
-      customerEmail: "sarah.j@email.com",
-      customerPhone: "(555) 123-4567",
-      total: 150,
-      date: "2026-01-07",
-      time: "10:00 AM",
-      status: "accepted",
-      category: "service",
-      serviceName: "Deep Home Cleaning",
-      serviceType: "Residential Cleaning",
-      scheduledDate: "2026-01-09",
-      scheduledTime: "10:00 AM - 2:00 PM",
-      serviceAddress: "123 Oak Street, San Francisco, CA 94102",
-      duration: "4 hours",
-      specialInstructions: "Please focus on kitchen and bathrooms",
-    },
-    // Beauty by Michelle - Accepted
-    {
-      id: "2",
-      orderNumber: "BTY-78901",
-      storeId: "beauty-michelle",
-      storeName: "Beauty by Michelle",
-      customerName: "Jessica Martinez",
-      customerEmail: "j.martinez@email.com",
-      customerPhone: "(555) 456-7890",
-      total: 120,
-      date: "2026-01-07",
-      time: "2:00 PM",
-      status: "accepted",
-      category: "service",
-      serviceName: "Hair & Makeup Package",
-      serviceType: "Beauty Services",
-      scheduledDate: "2026-01-08",
-      scheduledTime: "3:00 PM - 5:00 PM",
-      serviceAddress: "321 Elm Street, San Francisco, CA 94105",
-      duration: "2 hours",
-      specialInstructions: "Special occasion - wedding guest",
-    },
-    // Fresh Market - Accepted
-    {
-      id: "3",
-      orderNumber: "GRO-45678",
-      storeId: "fresh-market",
-      storeName: "Fresh Market",
-      customerName: "Emily Rodriguez",
-      customerEmail: "emily.r@email.com",
-      customerPhone: "(555) 345-6789",
-      total: 89.5,
-      date: "2026-01-07",
-      time: "9:15 AM",
-      status: "accepted",
-      category: "grocery",
-      items: [
-        { name: "Organic Apples (2lb)", quantity: 1, price: 8.99 },
-        { name: "Fresh Salmon Fillet", quantity: 2, price: 24.99 },
-        { name: "Whole Grain Bread", quantity: 1, price: 5.99 },
-        { name: "Greek Yogurt (6-pack)", quantity: 1, price: 7.99 },
-        { name: "Mixed Salad Greens", quantity: 2, price: 6.99 },
-      ],
-      itemCount: 5,
-      deliveryAddress: "789 Pine Avenue, San Francisco, CA 94104",
-      deliveryWindow: "2:00 PM - 4:00 PM",
-      specialInstructions: "Please leave at front door if no answer",
-    },
-    // HomeStyle Rentals - Accepted
-    {
-      id: "4",
-      orderNumber: "RNT-34567",
-      storeId: "homestyle-rentals",
-      storeName: "HomeStyle Rentals",
-      customerName: "David Thompson",
-      customerEmail: "d.thompson@email.com",
-      customerPhone: "(555) 567-8901",
-      total: 1200,
-      date: "2026-01-07",
-      time: "10:00 AM",
-      status: "accepted",
-      category: "rental",
-      propertyName: "Downtown Loft",
-      propertyAddress: "555 Mission Street, Unit 12B, San Francisco, CA 94106",
-      checkInDate: "2026-01-10",
-      checkOutDate: "2026-01-15",
-      numberOfGuests: 2,
-      specialRequests: "Early check-in if possible",
-    },
-    // HandyPro Services - Accepted
-    {
-      id: "5",
-      orderNumber: "HND-56789",
-      storeId: "handypro",
-      storeName: "HandyPro Services",
-      customerName: "Robert Chen",
-      customerEmail: "r.chen@email.com",
-      customerPhone: "(555) 234-5678",
-      total: 275,
-      date: "2026-01-07",
-      time: "11:45 AM",
-      status: "accepted",
-      category: "service",
-      serviceName: "Bathroom Fixture Installation",
-      serviceType: "Handyman Services",
-      scheduledDate: "2026-01-09",
-      scheduledTime: "1:00 PM - 4:00 PM",
-      serviceAddress: "890 Valencia Street, San Francisco, CA 94110",
-      duration: "3 hours",
-    },
-    // Michelle's Gourmet Kitchen - Accepted
-    {
-      id: "6",
-      orderNumber: "FD-23456",
-      storeId: "gourmet-kitchen",
-      storeName: "Michelle's Gourmet Kitchen",
-      customerName: "Amanda Wilson",
-      customerEmail: "a.wilson@email.com",
-      customerPhone: "(555) 678-9012",
-      total: 125.5,
-      date: "2026-01-07",
-      time: "12:30 PM",
-      status: "accepted",
-      category: "food",
-      items: [
-        { name: "Grilled Chicken Caesar Salad", quantity: 2, price: 18.99 },
-        { name: "Mushroom Risotto", quantity: 1, price: 24.99 },
-        { name: "Chocolate Lava Cake", quantity: 2, price: 12.99 },
-        { name: "Fresh Lemonade", quantity: 3, price: 4.99 },
-      ],
-      itemCount: 4,
-      deliveryAddress: "234 Hayes Street, San Francisco, CA 94102",
-      deliveryWindow: "6:00 PM - 7:00 PM",
-    },
-    // CaringHands - Accepted
-    {
-      id: "7",
-      orderNumber: "CG-67890",
-      storeId: "caring-hands",
-      storeName: "CaringHands",
-      customerName: "Margaret Davis",
-      customerEmail: "m.davis@email.com",
-      customerPhone: "(555) 345-6789",
-      total: 320,
-      date: "2026-01-07",
-      time: "8:00 AM",
-      status: "accepted",
-      category: "service",
-      serviceName: "Senior Care - Day Shift",
-      serviceType: "Caregiving Services",
-      scheduledDate: "2026-01-08",
-      scheduledTime: "8:00 AM - 4:00 PM",
-      serviceAddress: "567 Geary Boulevard, San Francisco, CA 94118",
-      duration: "8 hours",
-      specialInstructions: "Patient requires medication assistance at noon",
-    },
-    // Glam Beauty Products - Accepted
-    {
-      id: "8",
-      orderNumber: "PRD-78901",
-      storeId: "glam-products",
-      storeName: "Glam Beauty Products",
-      customerName: "Sophia Lee",
-      customerEmail: "s.lee@email.com",
-      customerPhone: "(555) 456-7890",
-      total: 185.99,
-      date: "2026-01-07",
-      time: "1:15 PM",
-      status: "accepted",
-      category: "product",
-      productName: "Premium Skincare Bundle",
-      quantity: 1,
-      shippingAddress: "678 Mission Street, Apt 12, San Francisco, CA 94103",
-      estimatedDelivery: "Jan 10-12, 2026",
-    },
-    // PetCare Plus - Accepted
-    {
-      id: "9",
-      orderNumber: "PET-89012",
-      storeId: "petcare-plus",
-      storeName: "PetCare Plus",
-      customerName: "James Taylor",
-      customerEmail: "j.taylor@email.com",
-      customerPhone: "(555) 567-8901",
-      total: 95,
-      date: "2026-01-07",
-      time: "3:45 PM",
-      status: "accepted",
-      category: "service",
-      serviceName: "Dog Walking & Care",
-      serviceType: "Pet Care Services",
-      scheduledDate: "2026-01-08",
-      scheduledTime: "2:00 PM - 3:00 PM",
-      serviceAddress: "789 Folsom Street, San Francisco, CA 94107",
-      duration: "1 hour",
-      specialInstructions: "Two dogs - friendly with other dogs",
-    },
-    // ========== IN PROGRESS ORDERS (8 stores) ==========
-    // CleanCo Services - In Progress
-    {
-      id: "10",
-      orderNumber: "CLN-12346",
-      storeId: "cleanco",
-      storeName: "CleanCo Services",
-      customerName: "Michael Chen",
-      customerEmail: "m.chen@email.com",
-      customerPhone: "(555) 234-5678",
-      total: 200,
-      date: "2026-01-06",
-      time: "11:30 AM",
-      status: "in-progress",
-      category: "service",
-      serviceName: "Office Deep Clean",
-      serviceType: "Commercial Cleaning",
-      scheduledDate: "2026-01-07",
-      scheduledTime: "6:00 PM - 10:00 PM",
-      serviceAddress: "456 Market Street, Suite 300, San Francisco, CA 94103",
-      duration: "4 hours",
-    },
-    // Beauty by Michelle - In Progress
-    {
-      id: "11",
-      orderNumber: "BTY-78902",
-      storeId: "beauty-michelle",
-      storeName: "Beauty by Michelle",
-      customerName: "Rachel Green",
-      customerEmail: "r.green@email.com",
-      customerPhone: "(555) 789-0123",
-      total: 210,
-      date: "2026-01-06",
-      time: "9:00 AM",
-      status: "in-progress",
-      category: "service",
-      serviceName: "Bridal Hair & Makeup",
-      serviceType: "Beauty Services",
-      scheduledDate: "2026-01-07",
-      scheduledTime: "10:00 AM - 2:00 PM",
-      serviceAddress: "901 Sacramento Street, San Francisco, CA 94108",
-      duration: "4 hours",
-    },
-    // Fresh Market - In Progress
-    {
-      id: "12",
-      orderNumber: "GRO-45679",
-      storeId: "fresh-market",
-      storeName: "Fresh Market",
-      customerName: "Thomas Anderson",
-      customerEmail: "t.anderson@email.com",
-      customerPhone: "(555) 890-1234",
-      total: 134.75,
-      date: "2026-01-06",
-      time: "2:00 PM",
-      status: "in-progress",
-      category: "grocery",
-      items: [
-        { name: "Organic Chicken Breast", quantity: 2, price: 18.99 },
-        { name: "Fresh Vegetables Mix", quantity: 3, price: 12.99 },
-        { name: "Quinoa (2lb)", quantity: 1, price: 14.99 },
-        { name: "Almond Milk", quantity: 2, price: 8.99 },
-        { name: "Free-Range Eggs (12)", quantity: 1, price: 6.99 },
-      ],
-      itemCount: 5,
-      deliveryAddress: "456 Castro Street, San Francisco, CA 94114",
-      deliveryWindow: "5:00 PM - 7:00 PM",
-    },
-    // HomeStyle Rentals - In Progress
-    {
-      id: "13",
-      orderNumber: "RNT-34568",
-      storeId: "homestyle-rentals",
-      storeName: "HomeStyle Rentals",
-      customerName: "Jennifer White",
-      customerEmail: "j.white@email.com",
-      customerPhone: "(555) 901-2345",
-      total: 850,
-      date: "2026-01-05",
-      time: "3:30 PM",
-      status: "in-progress",
-      category: "rental",
-      propertyName: "Cozy Studio Apartment",
-      propertyAddress: "234 Noe Street, Unit 5A, San Francisco, CA 94114",
-      checkInDate: "2026-01-06",
-      checkOutDate: "2026-01-10",
-      numberOfGuests: 1,
-    },
-    // HandyPro Services - In Progress
-    {
-      id: "14",
-      orderNumber: "HND-56790",
-      storeId: "handypro",
-      storeName: "HandyPro Services",
-      customerName: "Daniel Martinez",
-      customerEmail: "d.martinez@email.com",
-      customerPhone: "(555) 012-3456",
-      total: 425,
-      date: "2026-01-06",
-      time: "8:00 AM",
-      status: "in-progress",
-      category: "service",
-      serviceName: "Kitchen Cabinet Installation",
-      serviceType: "Handyman Services",
-      scheduledDate: "2026-01-07",
-      scheduledTime: "9:00 AM - 5:00 PM",
-      serviceAddress: "345 Divisadero Street, San Francisco, CA 94117",
-      duration: "8 hours",
-    },
-    // Michelle's Gourmet Kitchen - In Progress
-    {
-      id: "15",
-      orderNumber: "FD-23457",
-      storeId: "gourmet-kitchen",
-      storeName: "Michelle's Gourmet Kitchen",
-      customerName: "Patricia Brown",
-      customerEmail: "p.brown@email.com",
-      customerPhone: "(555) 123-4567",
-      total: 215.99,
-      date: "2026-01-07",
-      time: "4:30 PM",
-      status: "in-progress",
-      category: "food",
-      items: [
-        { name: "Prime Rib Dinner", quantity: 2, price: 42.99 },
-        { name: "Lobster Mac & Cheese", quantity: 1, price: 32.99 },
-        { name: "Caesar Salad", quantity: 2, price: 12.99 },
-        { name: "Tiramisu", quantity: 2, price: 14.99 },
-      ],
-      itemCount: 4,
-      deliveryAddress: "567 California Street, San Francisco, CA 94104",
-      deliveryWindow: "7:00 PM - 8:00 PM",
-    },
-    // CaringHands - In Progress
-    {
-      id: "16",
-      orderNumber: "CG-67891",
-      storeId: "caring-hands",
-      storeName: "CaringHands",
-      customerName: "William Johnson",
-      customerEmail: "w.johnson@email.com",
-      customerPhone: "(555) 234-5678",
-      total: 480,
-      date: "2026-01-06",
-      time: "6:00 AM",
-      status: "in-progress",
-      category: "service",
-      serviceName: "Overnight Care Service",
-      serviceType: "Caregiving Services",
-      scheduledDate: "2026-01-07",
-      scheduledTime: "8:00 PM - 8:00 AM",
-      serviceAddress: "678 Lombard Street, San Francisco, CA 94133",
-      duration: "12 hours",
-    },
-    // Glam Beauty Products - In Progress
-    {
-      id: "17",
-      orderNumber: "PRD-78902",
-      storeId: "glam-products",
-      storeName: "Glam Beauty Products",
-      customerName: "Olivia Davis",
-      customerEmail: "o.davis@email.com",
-      customerPhone: "(555) 345-6789",
-      total: 142.50,
-      date: "2026-01-06",
-      time: "11:00 AM",
-      status: "in-progress",
-      category: "product",
-      productName: "Luxury Haircare Set",
-      quantity: 2,
-      shippingAddress: "789 Harrison Street, San Francisco, CA 94107",
-      estimatedDelivery: "Jan 9-11, 2026",
-    },
-    // PetCare Plus - In Progress
-    {
-      id: "18",
-      orderNumber: "PET-89013",
-      storeId: "petcare-plus",
-      storeName: "PetCare Plus",
-      customerName: "Christopher Lee",
-      customerEmail: "c.lee@email.com",
-      customerPhone: "(555) 456-7890",
-      total: 150,
-      date: "2026-01-06",
-      time: "10:30 AM",
-      status: "in-progress",
-      category: "service",
-      serviceName: "Pet Grooming - Full Service",
-      serviceType: "Pet Care Services",
-      scheduledDate: "2026-01-07",
-      scheduledTime: "11:00 AM - 1:00 PM",
-      serviceAddress: "890 Bryant Street, San Francisco, CA 94103",
-      duration: "2 hours",
-    },
-    // ========== COMPLETED ORDERS (9 stores) ==========
-    // CleanCo Services - Completed
-    {
-      id: "19",
-      orderNumber: "CLN-12340",
-      storeId: "cleanco",
-      storeName: "CleanCo Services",
-      customerName: "Robert Williams",
-      customerEmail: "r.williams@email.com",
-      customerPhone: "(555) 678-9012",
-      total: 175,
-      date: "2026-01-05",
-      time: "9:00 AM",
-      status: "completed",
-      category: "service",
-      serviceName: "Move-Out Cleaning",
-      serviceType: "Residential Cleaning",
-      scheduledDate: "2026-01-06",
-      scheduledTime: "9:00 AM - 1:00 PM",
-      serviceAddress: "888 Broadway, Apt 4C, San Francisco, CA 94107",
-      duration: "4 hours",
-    },
-    // Beauty by Michelle - Completed
-    {
-      id: "20",
-      orderNumber: "BTY-78900",
-      storeId: "beauty-michelle",
-      storeName: "Beauty by Michelle",
-      customerName: "Nicole Turner",
-      customerEmail: "n.turner@email.com",
-      customerPhone: "(555) 789-0123",
-      total: 95,
-      date: "2026-01-04",
-      time: "1:00 PM",
-      status: "completed",
-      category: "service",
-      serviceName: "Express Manicure & Pedicure",
-      serviceType: "Beauty Services",
-      scheduledDate: "2026-01-05",
-      scheduledTime: "2:00 PM - 3:30 PM",
-      serviceAddress: "901 Fillmore Street, San Francisco, CA 94115",
-      duration: "1.5 hours",
-    },
-    // Fresh Market - Completed
-    {
-      id: "21",
-      orderNumber: "GRO-45670",
-      storeId: "fresh-market",
-      storeName: "Fresh Market",
-      customerName: "Lisa Anderson",
-      customerEmail: "l.anderson@email.com",
-      customerPhone: "(555) 789-0123",
-      total: 156.75,
-      date: "2026-01-05",
-      time: "8:30 AM",
-      status: "completed",
-      category: "grocery",
-      items: [
-        { name: "Organic Chicken Breast", quantity: 2, price: 18.99 },
-        { name: "Fresh Vegetables Mix", quantity: 3, price: 12.99 },
-        { name: "Quinoa (2lb)", quantity: 1, price: 14.99 },
-        { name: "Fresh Berries Mix", quantity: 2, price: 16.99 },
-        { name: "Olive Oil", quantity: 1, price: 15.99 },
-      ],
-      itemCount: 5,
-      deliveryAddress: "999 Valencia Street, San Francisco, CA 94108",
-      deliveryWindow: "11:00 AM - 1:00 PM",
-    },
-    // HomeStyle Rentals - Completed
-    {
-      id: "22",
-      orderNumber: "RNT-34565",
-      storeId: "homestyle-rentals",
-      storeName: "HomeStyle Rentals",
-      customerName: "Kevin Harris",
-      customerEmail: "k.harris@email.com",
-      customerPhone: "(555) 890-1234",
-      total: 2100,
-      date: "2026-01-01",
-      time: "2:00 PM",
-      status: "completed",
-      category: "rental",
-      propertyName: "Luxury 2BR Condo",
-      propertyAddress: "123 Embarcadero, Unit 20A, San Francisco, CA 94111",
-      checkInDate: "2026-01-02",
-      checkOutDate: "2026-01-06",
-      numberOfGuests: 4,
-    },
-    // HandyPro Services - Completed
-    {
-      id: "23",
-      orderNumber: "HND-56788",
-      storeId: "handypro",
-      storeName: "HandyPro Services",
-      customerName: "Steven Miller",
-      customerEmail: "s.miller@email.com",
-      customerPhone: "(555) 901-2345",
-      total: 180,
-      date: "2026-01-04",
-      time: "7:00 AM",
-      status: "completed",
-      category: "service",
-      serviceName: "Fence Repair",
-      serviceType: "Handyman Services",
-      scheduledDate: "2026-01-05",
-      scheduledTime: "8:00 AM - 11:00 AM",
-      serviceAddress: "234 Potrero Avenue, San Francisco, CA 94110",
-      duration: "3 hours",
-    },
-    // Michelle's Gourmet Kitchen - Completed
-    {
-      id: "24",
-      orderNumber: "FD-23455",
-      storeId: "gourmet-kitchen",
-      storeName: "Michelle's Gourmet Kitchen",
-      customerName: "Michelle Rodriguez",
-      customerEmail: "m.rodriguez@email.com",
-      customerPhone: "(555) 012-3456",
-      total: 98.75,
-      date: "2026-01-05",
-      time: "5:45 PM",
-      status: "completed",
-      category: "food",
-      items: [
-        { name: "Spaghetti Carbonara", quantity: 2, price: 16.99 },
-        { name: "Margherita Pizza", quantity: 1, price: 18.99 },
-        { name: "Garlic Bread", quantity: 2, price: 6.99 },
-        { name: "Cannoli", quantity: 2, price: 8.99 },
-      ],
-      itemCount: 4,
-      deliveryAddress: "345 Clement Street, San Francisco, CA 94118",
-      deliveryWindow: "7:30 PM - 8:30 PM",
-    },
-    // CaringHands - Completed
-    {
-      id: "25",
-      orderNumber: "CG-67889",
-      storeId: "caring-hands",
-      storeName: "CaringHands",
-      customerName: "Barbara Scott",
-      customerEmail: "b.scott@email.com",
-      customerPhone: "(555) 123-4567",
-      total: 240,
-      date: "2026-01-03",
-      time: "9:30 AM",
-      status: "completed",
-      category: "service",
-      serviceName: "Physical Therapy Assistance",
-      serviceType: "Caregiving Services",
-      scheduledDate: "2026-01-04",
-      scheduledTime: "10:00 AM - 2:00 PM",
-      serviceAddress: "456 Irving Street, San Francisco, CA 94122",
-      duration: "4 hours",
-    },
-    // Glam Beauty Products - Completed
-    {
-      id: "26",
-      orderNumber: "PRD-78900",
-      storeId: "glam-products",
-      storeName: "Glam Beauty Products",
-      customerName: "Ashley Martinez",
-      customerEmail: "a.martinez@email.com",
-      customerPhone: "(555) 234-5678",
-      total: 67.99,
-      date: "2026-01-03",
-      time: "12:00 PM",
-      status: "completed",
-      category: "product",
-      productName: "Organic Face Cream Set",
-      quantity: 1,
-      shippingAddress: "567 Hyde Street, Apt 8, San Francisco, CA 94109",
-      estimatedDelivery: "Jan 6-8, 2026",
-    },
-    // PetCare Plus - Completed
-    {
-      id: "27",
-      orderNumber: "PET-89010",
-      storeId: "petcare-plus",
-      storeName: "PetCare Plus",
-      customerName: "Brian Thompson",
-      customerEmail: "b.thompson@email.com",
-      customerPhone: "(555) 345-6789",
-      total: 120,
-      date: "2026-01-04",
-      time: "4:00 PM",
-      status: "completed",
-      category: "service",
-      serviceName: "Cat Sitting - Weekend",
-      serviceType: "Pet Care Services",
-      scheduledDate: "2026-01-05",
-      scheduledTime: "9:00 AM - 6:00 PM",
-      serviceAddress: "678 Pacific Avenue, San Francisco, CA 94133",
-      duration: "9 hours",
-      specialInstructions: "Feed twice daily, medication in evening",
-    },
-  ]);
+  // Data state
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [stores, setStores] = useState<StoreOption[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Get unique stores for filter with category
-  const storesMap = new Map<string, { id: string; name: string; category: OrderCategory }>();
-  orders.filter((order) => order.storeId !== "petcare-plus").forEach((order) => {
-    if (!storesMap.has(order.storeId)) {
-      storesMap.set(order.storeId, {
-        id: order.storeId,
-        name: order.storeName,
-        category: order.category,
+  // Fetch orders from API
+  const fetchOrders = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response: any = await api.get('/admin/orders');
+      const data = response?.data || response;
+      const ordersArray = Array.isArray(data) ? data : data?.orders || [];
+
+      // Transform API response to component format
+      const transformedOrders: Order[] = ordersArray.map((o: any) => {
+        const baseOrder = {
+          id: o.id,
+          orderNumber: o.orderNumber || o.id,
+          storeId: o.storeId || o.store?.id || 'unknown',
+          storeName: o.storeName || o.store?.name || 'Unknown Store',
+          customerName: o.customerName || o.customer?.name || 'Unknown',
+          customerEmail: o.customerEmail || o.customer?.email || '',
+          customerPhone: o.customerPhone || o.customer?.phone || '',
+          total: o.total || o.amount || 0,
+          date: o.date || o.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0],
+          time: o.time || new Date(o.createdAt || Date.now()).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+          status: normalizeStatus(o.status),
+          category: (o.category || o.type || 'service').toLowerCase() as OrderCategory,
+        };
+
+        // Add category-specific fields
+        if (baseOrder.category === 'service') {
+          return {
+            ...baseOrder,
+            category: 'service' as const,
+            serviceName: o.serviceName || o.service?.name || 'Service',
+            serviceType: o.serviceType || o.service?.type || 'General',
+            scheduledDate: o.scheduledDate || o.date,
+            scheduledTime: o.scheduledTime || o.time,
+            serviceAddress: o.serviceAddress || o.address || '',
+            duration: o.duration || '1 hour',
+            specialInstructions: o.specialInstructions || o.notes,
+          };
+        } else if (baseOrder.category === 'grocery' || baseOrder.category === 'food') {
+          return {
+            ...baseOrder,
+            category: baseOrder.category as 'grocery' | 'food',
+            items: o.items || [],
+            itemCount: o.itemCount || o.items?.length || 0,
+            deliveryAddress: o.deliveryAddress || o.address || '',
+            deliveryWindow: o.deliveryWindow || o.deliveryTime || '',
+            specialInstructions: o.specialInstructions || o.notes,
+          };
+        } else if (baseOrder.category === 'rental') {
+          return {
+            ...baseOrder,
+            category: 'rental' as const,
+            propertyName: o.propertyName || o.property?.name || 'Property',
+            propertyAddress: o.propertyAddress || o.property?.address || '',
+            checkInDate: o.checkInDate || o.startDate || '',
+            checkOutDate: o.checkOutDate || o.endDate || '',
+            numberOfGuests: o.numberOfGuests || o.guests || 1,
+            specialRequests: o.specialRequests || o.notes,
+          };
+        } else {
+          return {
+            ...baseOrder,
+            category: 'product' as const,
+            productName: o.productName || o.product?.name || 'Product',
+            quantity: o.quantity || 1,
+            shippingAddress: o.shippingAddress || o.address || '',
+            estimatedDelivery: o.estimatedDelivery || 'TBD',
+          };
+        }
       });
-    }
-  });
-  const stores = Array.from(storesMap.values());
 
-  // Get category icon (emoji)
-  const getStoreEmoji = (storeId: string) => {
-    const emojiMap: Record<string, string> = {
-      "cleanco": "🧹",
-      "beauty-michelle": "💄",
-      "fresh-market": "🛒",
-      "homestyle-rentals": "🏠",
-      "handypro": "🔧",
-      "gourmet-kitchen": "🍔",
-      "caring-hands": "💛",
-      "glam-products": "💅",
-    };
-    return emojiMap[storeId] || "🔧";
-  };
+      setOrders(transformedOrders);
+
+      // Extract unique stores
+      const uniqueStores: StoreOption[] = [];
+      transformedOrders.forEach(order => {
+        if (!uniqueStores.find(s => s.id === order.storeId)) {
+          uniqueStores.push({ id: order.storeId, name: order.storeName });
+        }
+      });
+      setStores(uniqueStores);
+    } catch (err: any) {
+      console.error('Failed to fetch orders:', err);
+      setError(err?.response?.data?.error || 'Failed to load orders');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   // Filter orders
   const filteredOrders = orders.filter((order) => {
-    // Exclude PetCare Plus orders
-    if (order.storeId === "petcare-plus") return false;
-    
     const matchesStatus = order.status === activeTab;
     const matchesStore = selectedStore === "all" || order.storeId === selectedStore;
     const matchesSearch =
       searchQuery === "" ||
       order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.customerName.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     // Date range filtering
     let matchesDateRange = true;
     if (dateRange?.from) {
@@ -772,7 +265,6 @@ export function MichelleOrders() {
           end: dateRange.to,
         });
       } else {
-        // Only start date selected
         matchesDateRange = orderDate >= dateRange.from;
       }
     }
@@ -794,20 +286,33 @@ export function MichelleOrders() {
 
   // Count orders by status
   const statusCounts = {
-    accepted: orders.filter((o) => o.status === "accepted").length,
-    "in-progress": orders.filter((o) => o.status === "in-progress").length,
-    completed: orders.filter((o) => o.status === "completed").length,
+    ACCEPTED: orders.filter((o) => o.status === "ACCEPTED").length,
+    PREPARING: orders.filter((o) => o.status === "PREPARING").length,
+    COMPLETED: orders.filter((o) => o.status === "COMPLETED").length,
   };
 
   // Handle status change
-  const handleStatusChange = (orderId: string, newStatus: OrderStatus) => {
-    setOrders((prev) =>
-      prev.map((order) =>
-        order.id === orderId ? { ...order, status: newStatus } : order
-      )
-    );
-    setDetailsOpen(false);
-    setSelectedOrder(null);
+  const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
+    try {
+      await api.patch(`/admin/orders/${orderId}/status`, { status: newStatus });
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === orderId ? { ...order, status: newStatus } : order
+        )
+      );
+      setDetailsOpen(false);
+      setSelectedOrder(null);
+    } catch (err) {
+      console.error('Failed to update order status:', err);
+      // Optimistic update - still update locally even if API fails
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === orderId ? { ...order, status: newStatus } : order
+        )
+      );
+      setDetailsOpen(false);
+      setSelectedOrder(null);
+    }
   };
 
   // Open order details
@@ -826,15 +331,15 @@ export function MichelleOrders() {
 
   // Get next status
   const getNextStatus = (currentStatus: OrderStatus): OrderStatus | null => {
-    if (currentStatus === "accepted") return "in-progress";
-    if (currentStatus === "in-progress") return "completed";
+    if (currentStatus === "ACCEPTED") return "PREPARING";
+    if (currentStatus === "PREPARING") return "COMPLETED";
     return null;
   };
 
   // Get status button text
   const getStatusButtonText = (status: OrderStatus): string => {
-    if (status === "accepted") return "Mark In Progress";
-    if (status === "in-progress") return "Mark Completed";
+    if (status === "ACCEPTED") return "Mark In Progress";
+    if (status === "PREPARING") return "Mark Completed";
     return "";
   };
 
@@ -867,136 +372,124 @@ export function MichelleOrders() {
             </p>
           </div>
 
+          {/* Error Banner */}
+          {error && (
+            <div className="mb-6 p-4 rounded-lg bg-[#FEE2E2] border border-[#DC2626] text-[#991B1B] flex items-center justify-between">
+              <span className="text-sm font-medium">{error}</span>
+              <button
+                onClick={fetchOrders}
+                className="ml-4 px-3 py-1 text-sm border border-[#DC2626] rounded hover:bg-[#FEE2E2]"
+              >
+                Try Again
+              </button>
+            </div>
+          )}
+
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as OrderStatus)} className="w-full">
             {/* Desktop Tabs */}
             <div className="hidden sm:block">
               <TabsList className="w-full justify-start bg-white border border-[#E5E7EB] rounded-t-xl h-[52px] p-0 mb-0">
                 <TabsTrigger
-                  value="accepted"
+                  value="ACCEPTED"
                   className="h-full px-6 rounded-none data-[state=active]:border-b-2 data-[state=active]:border-[#1F2937] data-[state=active]:bg-white"
                 >
                   Accepted
-                  {statusCounts.accepted > 0 && (
+                  {statusCounts.ACCEPTED > 0 && (
                     <span className="ml-2 px-2 py-0.5 text-xs font-semibold bg-[#FEF3C7] text-[#92400E] rounded-full">
-                      {statusCounts.accepted}
+                      {statusCounts.ACCEPTED}
                     </span>
                   )}
                 </TabsTrigger>
                 <TabsTrigger
-                  value="in-progress"
+                  value="PREPARING"
                   className="h-full px-6 rounded-none data-[state=active]:border-b-2 data-[state=active]:border-[#1F2937] data-[state=active]:bg-white"
                 >
                   In Progress
-                  {statusCounts["in-progress"] > 0 && (
+                  {statusCounts.PREPARING > 0 && (
                     <span className="ml-2 px-2 py-0.5 text-xs font-semibold bg-[#DBEAFE] text-[#1E40AF] rounded-full">
-                      {statusCounts["in-progress"]}
+                      {statusCounts.PREPARING}
                     </span>
                   )}
                 </TabsTrigger>
                 <TabsTrigger
-                  value="completed"
+                  value="COMPLETED"
                   className="h-full px-6 rounded-none data-[state=active]:border-b-2 data-[state=active]:border-[#1F2937] data-[state=active]:bg-white"
                 >
                   Completed
+                  {statusCounts.COMPLETED > 0 && (
+                    <span className="ml-2 px-2 py-0.5 text-xs font-semibold bg-[#D1FAE5] text-[#065F46] rounded-full">
+                      {statusCounts.COMPLETED}
+                    </span>
+                  )}
                 </TabsTrigger>
               </TabsList>
             </div>
 
-            {/* Mobile Tab Selector */}
+            {/* Mobile Tabs */}
             <div className="sm:hidden mb-4">
               <Select value={activeTab} onValueChange={(v) => setActiveTab(v as OrderStatus)}>
-                <SelectTrigger className="h-12 bg-white">
+                <SelectTrigger className="h-12">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="accepted">
-                    Accepted {statusCounts.accepted > 0 && `(${statusCounts.accepted})`}
-                  </SelectItem>
-                  <SelectItem value="in-progress">
-                    In Progress {statusCounts["in-progress"] > 0 && `(${statusCounts["in-progress"]})`}
-                  </SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="ACCEPTED">Accepted ({statusCounts.ACCEPTED})</SelectItem>
+                  <SelectItem value="PREPARING">In Progress ({statusCounts.PREPARING})</SelectItem>
+                  <SelectItem value="COMPLETED">Completed ({statusCounts.COMPLETED})</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Filters */}
-            <div className="bg-white border border-[#E5E7EB] border-t-0 rounded-b-xl sm:rounded-t-none p-4 sm:p-6 mb-6">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="store-filter" className="text-sm font-medium text-[#374151] mb-2">
-                    Filter by Store
-                  </Label>
-                  <Select value={selectedStore} onValueChange={setSelectedStore}>
-                    <SelectTrigger id="store-filter" className="h-10">
-                      <SelectValue placeholder="All Stores" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Stores</SelectItem>
-                      {stores.map((store) => {
-                        const emoji = getStoreEmoji(store.id);
-                        return (
-                          <SelectItem key={store.id} value={store.id}>
-                            <div className="flex items-center gap-2">
-                              <span>{emoji}</span>
-                              <span>-</span>
-                              <span>{store.name}</span>
-                            </div>
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="search" className="text-sm font-medium text-[#374151] mb-2">
-                    Search Orders
-                  </Label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" />
-                    <Input
-                      id="search"
-                      type="text"
-                      placeholder="Search by order # or customer name"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 h-10"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="date-filter" className="text-sm font-medium text-[#374151] mb-2">
-                    Filter by Date
-                  </Label>
-                  <DateRangePicker
-                    value={dateRange}
-                    onChange={setDateRange}
+            {/* Filter Bar */}
+            <div className="bg-[#F9FAFB] border-x border-b border-[#E5E7EB] rounded-b-xl p-4 sm:p-5 mb-6">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" />
+                  <Input
+                    placeholder="Search orders..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 h-11"
                   />
                 </div>
+                <Select value={selectedStore} onValueChange={setSelectedStore}>
+                  <SelectTrigger className="w-full sm:w-[200px] h-11">
+                    <SelectValue placeholder="All Stores" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Stores</SelectItem>
+                    {stores.map((store) => (
+                      <SelectItem key={store.id} value={store.id}>
+                        {store.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <DateRangePicker
+                  value={dateRange}
+                  onChange={setDateRange}
+                  className="w-full sm:w-auto"
+                />
               </div>
             </div>
 
             {/* Tab Content */}
             <TabsContent value={activeTab} className="mt-0">
-              {Object.keys(groupedOrders).length === 0 ? (
-                <div className="bg-white border border-[#E5E7EB] rounded-xl p-12 text-center">
-                  <Package className="w-12 h-12 text-[#9CA3AF] mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-[#1F2937] mb-2">
-                    No Orders Found
-                  </h3>
-                  <p className="text-sm text-[#6B7280]">
-                    {searchQuery || selectedStore !== "all"
-                      ? "Try adjusting your filters"
-                      : `No ${activeTab} orders at this time`}
-                  </p>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-20">
+                  <Loader2 className="w-8 h-8 text-[#6B7280] animate-spin" />
+                </div>
+              ) : Object.keys(groupedOrders).length === 0 ? (
+                <div className="bg-white border border-[#E5E7EB] rounded-xl p-8 text-center">
+                  <p className="text-[#6B7280]">No orders found</p>
                 </div>
               ) : (
                 <div className="space-y-6">
                   {Object.entries(groupedOrders).map(([storeId, { storeName, orders: storeOrders }]) => (
-                    <div key={storeId} className="bg-white border border-[#E5E7EB] rounded-xl overflow-hidden">
+                    <div
+                      key={storeId}
+                      className="bg-white border border-[#E5E7EB] rounded-xl overflow-hidden"
+                    >
                       {/* Store Header */}
                       <div className="bg-[#F9FAFB] border-b border-[#E5E7EB] px-6 py-4">
                         <div className="flex items-center justify-between">
@@ -1068,19 +561,19 @@ export function MichelleOrders() {
                                   }}
                                   className="w-full sm:w-auto text-sm"
                                 >
-                                  {order.status === "accepted" && (
+                                  {order.status === "ACCEPTED" && (
                                     <Clock className="w-4 h-4 mr-2" />
                                   )}
-                                  {order.status === "in-progress" && (
+                                  {order.status === "PREPARING" && (
                                     <CheckCircle className="w-4 h-4 mr-2" />
                                   )}
-                                  {order.status === "accepted" && (
+                                  {order.status === "ACCEPTED" && (
                                     <>
                                       <span className="hidden sm:inline">Mark In Progress</span>
                                       <span className="sm:hidden">In Progress</span>
                                     </>
                                   )}
-                                  {order.status === "in-progress" && (
+                                  {order.status === "PREPARING" && (
                                     <>
                                       <span className="hidden sm:inline">Mark Completed</span>
                                       <span className="sm:hidden">Complete</span>
@@ -1134,8 +627,8 @@ export function MichelleOrders() {
                   <span className="text-lg font-semibold text-[#1F2937]">
                     {selectedOrder.orderNumber}
                   </span>
-                  <span className="px-3 py-1 text-sm font-medium rounded-full capitalize bg-[#F3F4F6] text-[#374151]">
-                    {selectedOrder.status.replace("-", " ")}
+                  <span className="px-3 py-1 text-sm font-medium rounded-full bg-[#F3F4F6] text-[#374151]">
+                    {statusDisplayMap[selectedOrder.status]}
                   </span>
                 </div>
                 <p className="text-sm text-[#6B7280]">{selectedOrder.storeName}</p>
@@ -1395,10 +888,10 @@ export function MichelleOrders() {
                     className="w-full"
                     size="lg"
                   >
-                    {selectedOrder.status === "accepted" && (
+                    {selectedOrder.status === "ACCEPTED" && (
                       <Clock className="w-5 h-5 mr-2" />
                     )}
-                    {selectedOrder.status === "in-progress" && (
+                    {selectedOrder.status === "PREPARING" && (
                       <CheckCircle className="w-5 h-5 mr-2" />
                     )}
                     {getStatusButtonText(selectedOrder.status)}

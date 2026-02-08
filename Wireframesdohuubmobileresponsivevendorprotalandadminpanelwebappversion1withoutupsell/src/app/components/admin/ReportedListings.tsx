@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { api } from "../../../services/api";
 import {
   AlertTriangle,
   X,
@@ -62,10 +63,6 @@ const mockReports: ListingReport[] = [
     reportExplanation:
       "Listing showed $50 for haircut but was charged $120 at completion. Hidden fees were not disclosed upfront. This is deceptive pricing.",
     reportedAt: "2025-12-28",
-  },
-];
-
-function ReportCard({ report }: { report: ListingReport }) {
   const navigate = useNavigate();
   const [showActionModal, setShowActionModal] = useState(false);
   const [actionType, setActionType] = useState<"ignore" | "suspend" | null>(null);
@@ -193,7 +190,41 @@ export function ReportedListings() {
     }
   };
 
-  const [reports] = useState<ListingReport[]>(mockReports);
+  const [reports, setReports] = useState<ListingReport[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch moderation reports from API
+  useEffect(() => {
+    const fetchReports = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const response: any = await api.getModerationReports({ status: "pending" });
+        const mappedReports: ListingReport[] = (response.reports || response || []).map((report: any) => ({
+          id: report.id,
+          listingName: report.listing?.name || report.listingName,
+          vendorId: report.vendor?.id || report.vendorId,
+          vendorName: report.vendor?.name || report.vendorName,
+          customerName: report.customer?.name || report.customerName,
+          reportReason: report.reason || report.reportReason,
+          reportExplanation: report.explanation || report.reportExplanation || report.description,
+          reportedAt: report.createdAt || report.reportedAt,
+        }));
+
+        setReports(mappedReports);
+      } catch (err: any) {
+        console.error("Failed to fetch reports:", err);
+        setError(err.response?.data?.error || "Failed to load reports. Please try again later.");
+        setReports([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchReports();
+  }, []);
 
   return (
     <div className="min-h-screen bg-white">

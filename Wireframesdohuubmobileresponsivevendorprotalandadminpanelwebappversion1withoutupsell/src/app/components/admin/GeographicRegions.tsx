@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { api } from "../../../services/api";
 import {
   ArrowLeft,
   Plus,
@@ -71,8 +72,7 @@ interface Country {
   regions: Region[];
 }
 
-// Mock data
-const mockRegions: Region[] = [
+export function GeographicRegions() {
   {
     id: "1",
     name: "New York, NY",
@@ -150,11 +150,10 @@ const mockRegions: Region[] = [
       customers: 0,
     },
     notes: "",
-  },
-];
-
-export function GeographicRegions() {
   const navigate = useNavigate();
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -169,6 +168,47 @@ export function GeographicRegions() {
       setSidebarOpen(!sidebarOpen);
     }
   };
+
+  // Fetch regions from API
+  useEffect(() => {
+    const fetchRegions = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const response: any = await api.getRegions();
+        const mappedRegions: Region[] = (response.regions || response || []).map((region: any) => ({
+          id: region.id,
+          name: region.name,
+          countryCode: region.countryCode || "US",
+          countryName: region.countryName || "United States",
+          countryFlag: region.countryFlag || "🇺🇸",
+          isActive: region.isActive !== false,
+          activeProfiles: region.activeProfiles || 0,
+          totalProfiles: region.totalProfiles || 0,
+          profiles: region.profiles || [],
+          performance: {
+            bookings: region.performance?.bookings || 0,
+            bookingsTrend: region.performance?.bookingsTrend || 0,
+            revenue: region.performance?.revenue || 0,
+            revenueTrend: region.performance?.revenueTrend || 0,
+            customers: region.performance?.customers || 0,
+          },
+          notes: region.notes || "",
+        }));
+
+        setRegions(mappedRegions);
+      } catch (err: any) {
+        console.error("Failed to fetch regions:", err);
+        setError(err.response?.data?.error || "Failed to load regions. Please try again later.");
+        setRegions([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRegions();
+  }, []);
 
   // State
   const [regions, setRegions] = useState<Region[]>(mockRegions);

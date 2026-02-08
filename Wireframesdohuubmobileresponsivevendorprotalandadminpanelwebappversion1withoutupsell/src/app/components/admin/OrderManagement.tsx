@@ -47,46 +47,6 @@ interface Order {
   paymentStatus: "paid" | "pending" | "failed";
 }
 
-// Mock data
-const mockOrders: Order[] = [
-  {
-    id: "BK-12789",
-    orderNumber: "BK-12789",
-    customerId: "C123",
-    customerName: "Sarah Johnson",
-    customerEmail: "sarah.j@email.com",
-    vendorId: "V001",
-    vendorName: "CleanCo Services",
-    serviceName: "Deep Cleaning Service",
-    status: "upcoming",
-    date: "2026-01-06",
-    time: "10:00 AM",
-    location: "123 Main St, New York, NY",
-    duration: "3 hours",
-    total: 120,
-    paymentMethod: "Visa ****1234",
-    paymentStatus: "paid",
-  },
-  {
-    id: "BK-12345",
-    orderNumber: "BK-12345",
-    customerId: "C456",
-    customerName: "John D.",
-    customerEmail: "john.d@email.com",
-    vendorId: "V001",
-    vendorName: "CleanCo Services",
-    serviceName: "Deep Cleaning Service",
-    status: "completed",
-    date: "2024-12-30",
-    time: "2:00 PM",
-    location: "456 Oak Ave, Brooklyn, NY",
-    duration: "3 hours",
-    total: 120,
-    paymentMethod: "Visa ****5678",
-    paymentStatus: "paid",
-  },
-];
-
 const getStatusConfig = (status: string) => {
   const configs: Record<string, { label: string; bg: string; text: string }> = {
     upcoming: { label: "Upcoming", bg: "bg-[#DBEAFE]", text: "text-[#1E40AF]" },
@@ -294,9 +254,8 @@ export function OrderManagement() {
       setOrders(mappedOrders);
     } catch (err: any) {
       console.error("Failed to fetch orders:", err);
-      setError("Failed to load orders. Showing sample data.");
-      // Fallback to mock data
-      setOrders(mockOrders);
+      setError(err.response?.data?.error || "Failed to load orders. Please try again later.");
+      setOrders([]);
     } finally {
       setIsLoading(false);
     }

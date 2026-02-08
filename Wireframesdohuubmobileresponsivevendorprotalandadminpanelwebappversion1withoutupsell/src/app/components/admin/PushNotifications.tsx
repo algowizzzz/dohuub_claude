@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Bell,
   Send,
@@ -8,6 +8,7 @@ import {
   Smartphone,
   Plus,
 } from "lucide-react";
+import { api } from "../../../services/api";
 import { AdminSidebarRetractable } from "./AdminSidebarRetractable";
 import { AdminTopNav } from "./AdminTopNav";
 import { Button } from "../ui/button";
@@ -50,10 +51,15 @@ export function PushNotifications() {
   );
   const [activeTab, setActiveTab] = useState<"compose" | "history">("compose");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Form state
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
+  const [audienceCount, setAudienceCount] = useState(0);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const handleSidebarToggle = () => {
     if (typeof window !== "undefined" && window.innerWidth >= 1024) {
@@ -63,96 +69,98 @@ export function PushNotifications() {
     }
   };
 
-  // Mock notification history
-  const [notifications] = useState<Notification[]>([
-    {
-      id: "1",
-      title: "New Year Special Offers! 🎉",
-      message: "Celebrate 2026 with exclusive deals on all services. Up to 50% off!",
-      audience: "All Customers",
-      audienceCount: 12450,
-      status: "sent",
-      sentAt: "2026-01-07T10:00:00",
-      delivered: 11980,
-      opened: 8456,
-      clicked: 3245,
-      link: "/offers",
-    },
-    {
-      id: "2",
-      title: "Your order is on the way",
-      message: "Your order #CLN-12345 will arrive in 30 minutes",
-      audience: "All Customers",
-      audienceCount: 12450,
-      status: "sent",
-      sentAt: "2026-01-07T09:30:00",
-      delivered: 234,
-      opened: 198,
-      clicked: 156,
-    },
-    {
-      id: "3",
-      title: "Rate your recent experience",
-      message: "How was your service with CleanCo? Leave a review and help others!",
-      audience: "All Customers",
-      audienceCount: 12450,
-      status: "sent",
-      sentAt: "2026-01-06T18:00:00",
-      delivered: 550,
-      opened: 412,
-      clicked: 189,
-      link: "/reviews",
-    },
-    {
-      id: "4",
-      title: "Weekend Flash Sale!",
-      message: "Limited time offer on beauty services. Book now!",
-      audience: "All Customers",
-      audienceCount: 12450,
-      status: "sent",
-      sentAt: "2026-01-06T08:00:00",
-      delivered: 3398,
-      opened: 2145,
-      clicked: 876,
-      link: "/beauty",
-    },
-    {
-      id: "5",
-      title: "New vendors in your area",
-      message: "Discover 5 new service providers near you",
-      audience: "All Customers",
-      audienceCount: 12450,
-      status: "sent",
-      sentAt: "2026-01-05T14:00:00",
-      delivered: 8765,
-      opened: 5234,
-      clicked: 2134,
-    },
-  ]);
+  // Fetch notification history and customer count from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
 
-  const handleSend = () => {
-    // Mock send functionality
-    setShowSuccessModal(true);
-    // Reset form
-    setTimeout(() => {
-      setTitle("");
-      setMessage("");
-      setShowSuccessModal(false);
-      setActiveTab("history");
-    }, 2000);
+        // Fetch notification history
+        const notificationsResponse: any = await api.get('/notifications');
+        const mappedNotifications: Notification[] = (notificationsResponse.notifications || notificationsResponse || []).map((notif: any) => ({
+          id: notif.id,
+          title: notif.title,
+          message: notif.message || notif.body,
+          audience: notif.audience || "All Customers",
+          audienceCount: notif.audienceCount || notif.recipientCount || 0,
+          status: notif.status || "sent",
+          sentAt: notif.sentAt || notif.createdAt,
+          scheduledFor: notif.scheduledFor,
+          delivered: notif.delivered || notif.deliveredCount || 0,
+          opened: notif.opened || notif.openedCount || 0,
+          clicked: notif.clicked || notif.clickedCount || 0,
+          link: notif.link || notif.actionUrl,
+        }));
+        setNotifications(mappedNotifications);
+
+        // Fetch total customer count
+        const customersResponse: any = await api.getCustomers();
+        const totalCustomers = customersResponse.totalCount || customersResponse.length || 0;
+        setAudienceCount(totalCustomers);
+      } catch (err: any) {
+        console.error("Failed to fetch notifications:", err);
+        setError(err.response?.data?.error || "Failed to load notifications. Please try again later.");
+        setNotifications([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const handleSend = async () => {
+    if (!title || !message) return;
+
+    try {
+      setIsSending(true);
+      await api.post('/notifications', {
+        title,
+        message,
+        audience: "all",
+      });
+
+      setShowSuccessModal(true);
+      // Reset form and refresh history
+      setTimeout(async () => {
+        setTitle("");
+        setMessage("");
+        setShowSuccessModal(false);
+        setActiveTab("history");
+        
+        // Refresh notifications list
+        try {
+          const notificationsResponse: any = await api.get('/notifications');
+          const mappedNotifications: Notification[] = (notificationsResponse.notifications || notificationsResponse || []).map((notif: any) => ({
+            id: notif.id,
+            title: notif.title,
+            message: notif.message || notif.body,
+            audience: notif.audience || "All Customers",
+            audienceCount: notif.audienceCount || notif.recipientCount || 0,
+            status: notif.status || "sent",
+            sentAt: notif.sentAt || notif.createdAt,
+            scheduledFor: notif.scheduledFor,
+            delivered: notif.delivered || notif.deliveredCount || 0,
+            opened: notif.opened || notif.openedCount || 0,
+            clicked: notif.clicked || notif.clickedCount || 0,
+            link: notif.link || notif.actionUrl,
+          }));
+          setNotifications(mappedNotifications);
+        } catch (err) {
+          console.error("Failed to refresh notifications:", err);
+        }
+      }, 2000);
+    } catch (err: any) {
+      console.error("Failed to send notification:", err);
+      setError(err.response?.data?.error || "Failed to send notification. Please try again.");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const getAudienceCount = (audienceType: string) => {
-    const counts: Record<string, number> = {
-      all: 12450,
-      active: 234,
-      recent: 567,
-      beauty: 3420,
-      grocery: 2890,
-      service: 5670,
-      rental: 1230,
-    };
-    return counts[audienceType] || 0;
+    return audienceCount;
   };
 
   const formatDate = (dateString: string) => {
@@ -273,14 +281,20 @@ export function PushNotifications() {
                       </div>
                     </div>
 
+                    {error && (
+                      <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                        <p className="text-sm text-red-800">{error}</p>
+                      </div>
+                    )}
+
                     <div className="flex gap-3 pt-4">
                       <Button
                         onClick={handleSend}
-                        disabled={!title || !message}
+                        disabled={!title || !message || isSending}
                         className="w-full bg-[#1F2937] hover:bg-[#111827] text-white"
                       >
                         <Send className="w-4 h-4 mr-2" />
-                        Send Notification
+                        {isSending ? "Sending..." : "Send Notification"}
                       </Button>
                     </div>
                   </div>
@@ -341,9 +355,25 @@ export function PushNotifications() {
             {/* History Tab */}
             <TabsContent value="history" className="m-0">
               <div className="bg-white border border-[#E5E7EB] border-t-0 rounded-b-2xl">
-                {/* Notifications List */}
-                <div className="divide-y divide-[#E5E7EB]">
-                  {notifications.map((notif) => (
+                {isLoading && (
+                  <div className="p-12 text-center">
+                    <p className="text-[#6B7280]">Loading notifications...</p>
+                  </div>
+                )}
+
+                {error && !isLoading && (
+                  <div className="p-6">
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                      <p className="text-red-800">{error}</p>
+                    </div>
+                  </div>
+                )}
+
+                {!isLoading && !error && (
+                  <>
+                    {/* Notifications List */}
+                    <div className="divide-y divide-[#E5E7EB]">
+                      {notifications.map((notif) => (
                     <div key={notif.id} className="p-6 hover:bg-[#F9FAFB] transition-colors">
                       <div className="flex items-start gap-3">
                         <div className="w-10 h-10 rounded-xl bg-[#1F2937] flex items-center justify-center shrink-0">
@@ -371,13 +401,15 @@ export function PushNotifications() {
                     </div>
                   ))}
 
-                  {notifications.length === 0 && (
-                    <div className="p-12 text-center">
-                      <Bell className="w-12 h-12 text-[#D1D5DB] mx-auto mb-3" />
-                      <p className="text-sm text-[#6B7280]">No notifications found</p>
+                      {notifications.length === 0 && (
+                        <div className="p-12 text-center">
+                          <Bell className="w-12 h-12 text-[#D1D5DB] mx-auto mb-3" />
+                          <p className="text-sm text-[#6B7280]">No notifications found</p>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
             </TabsContent>
           </Tabs>

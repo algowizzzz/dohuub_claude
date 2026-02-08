@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -16,7 +16,9 @@ import {
   ShoppingBag,
   DollarSign,
   Star,
+  Loader2,
 } from "lucide-react";
+import { api } from "../../../services/api";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import {
@@ -47,60 +49,16 @@ interface Customer {
   paymentMethod?: string;
 }
 
-// Mock data
-const mockCustomers: Customer[] = [
-  {
-    id: "C123",
-    name: "Sarah Johnson",
-    email: "sarah.j@email.com",
-    phone: "+1 (555) 234-5678",
-    verified: true,
-    joinedDate: "2024-03-15",
-    status: "active",
-    bookingsCount: 23,
-    totalSpent: 2847,
-    avgOrderValue: 124,
-    reviewsWritten: 18,
-    avgRatingGiven: 4.6,
-    lastActive: "2 days ago",
-    paymentMethod: "Visa ****1234",
-  },
-  {
-    id: "C456",
-    name: "John D.",
-    email: "john.d@email.com",
-    phone: "+1 (555) 345-6789",
-    verified: true,
-    joinedDate: "2024-06-20",
-    status: "active",
-    bookingsCount: 15,
-    totalSpent: 1420,
-    avgOrderValue: 95,
-    reviewsWritten: 12,
-    avgRatingGiven: 4.3,
-    lastActive: "1 day ago",
-    paymentMethod: "Visa ****5678",
-  },
-  {
-    id: "C789",
-    name: "Maria S.",
-    email: "maria.s@email.com",
-    phone: "+1 (555) 456-7890",
-    verified: true,
-    joinedDate: "2024-01-10",
-    status: "active",
-    bookingsCount: 8,
-    totalSpent: 680,
-    avgOrderValue: 85,
-    reviewsWritten: 6,
-    avgRatingGiven: 4.8,
-    lastActive: "5 days ago",
-    paymentMethod: "Mastercard ****9012",
-  },
-];
-
-function CustomerCard({ customer }: { customer: Customer }) {
+function CustomerCard({ customer, onStatusChange }: { customer: Customer; onStatusChange: (id: string, newStatus: 'ACTIVE' | 'SUSPENDED') => void }) {
   const navigate = useNavigate();
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleStatusChange = async () => {
+    const newStatus = customer.status === 'active' ? 'SUSPENDED' : 'ACTIVE';
+    setIsUpdating(true);
+    await onStatusChange(customer.id, newStatus);
+    setIsUpdating(false);
+  };
 
   return (
     <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 sm:p-6 mb-5 hover:shadow-lg transition-shadow">
@@ -160,14 +118,26 @@ function CustomerCard({ customer }: { customer: Customer }) {
       {/* Actions */}
       <div className="flex justify-end pt-4 border-t border-[#E5E7EB]">
         {customer.status === "active" ? (
-          <Button size="sm" variant="outline" className="text-[#DC2626] border-[#FECACA]">
-            <Ban className="w-4 h-4 mr-2" />
-            Suspend
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-[#DC2626] border-[#FECACA]"
+            onClick={handleStatusChange}
+            disabled={isUpdating}
+          >
+            {isUpdating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Ban className="w-4 h-4 mr-2" />}
+            {isUpdating ? 'Suspending...' : 'Suspend'}
           </Button>
         ) : customer.status === "suspended" ? (
-          <Button size="sm" variant="outline" className="text-[#10B981] border-[#D1FAE5]">
-            <CheckCircle className="w-4 h-4 mr-2" />
-            Activate
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-[#10B981] border-[#D1FAE5]"
+            onClick={handleStatusChange}
+            disabled={isUpdating}
+          >
+            {isUpdating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+            {isUpdating ? 'Activating...' : 'Activate'}
           </Button>
         ) : null}
       </div>
@@ -193,9 +163,73 @@ export function CustomerManagement() {
     }
   };
 
-  const [customers] = useState<Customer[]>(mockCustomers);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  // Fetch customers from API
+  const fetchCustomers = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response: any = await api.get('/admin/customers');
+      const customersData = Array.isArray(response) ? response : response?.data || [];
+      setCustomers(customersData.map((c: any) => {
+        // Build name from various possible sources
+        const profile = c.profile || {};
+        const firstName = c.firstName || profile.firstName || '';
+        const lastName = c.lastName || profile.lastName || '';
+        const fullName = firstName && lastName
+          ? `${firstName} ${lastName}`.trim()
+          : firstName || lastName || c.name || c.email?.split('@')[0] || 'Unknown';
+
+        return {
+        id: c.id,
+        name: fullName,
+        email: c.email || '',
+        phone: c.phone || '',
+        avatar: c.avatar || c.profileImage,
+        verified: c.verified || c.emailVerified || false,
+        joinedDate: c.createdAt || c.joinedDate || new Date().toISOString(),
+        status: (c.status || 'active').toLowerCase() as Customer['status'],
+        bookingsCount: c.bookingsCount || c.ordersCount || 0,
+        totalSpent: c.totalSpent || 0,
+        avgOrderValue: c.avgOrderValue || 0,
+        reviewsWritten: c.reviewsWritten || c.reviewCount || 0,
+        avgRatingGiven: c.avgRatingGiven || 0,
+        lastActive: c.lastActive || c.lastLoginAt || 'Unknown',
+        paymentMethod: c.paymentMethod,
+      };
+      }));
+    } catch (err: any) {
+      console.error('Failed to fetch customers:', err);
+      setError(err?.response?.data?.error || 'Failed to load customers. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCustomers();
+  }, [fetchCustomers]);
+
+  // Handle customer status change (suspend/activate)
+  const handleCustomerStatusChange = async (customerId: string, newStatus: 'ACTIVE' | 'SUSPENDED') => {
+    try {
+      await api.updateCustomerStatus(customerId, newStatus);
+      // Update local state
+      setCustomers(prev => prev.map(c =>
+        c.id === customerId
+          ? { ...c, status: newStatus.toLowerCase() as Customer['status'] }
+          : c
+      ));
+    } catch (err: any) {
+      console.error('Failed to update customer status:', err);
+      setError(err?.response?.data?.error || 'Failed to update customer status');
+    }
+  };
 
   // If viewing specific customer
   if (id) {
@@ -528,8 +562,28 @@ export function CustomerManagement() {
             </Select>
           </div>
 
+          {/* Error Banner */}
+          {error && (
+            <div className="mb-4 p-4 rounded-lg bg-[#FEE2E2] border border-[#DC2626] text-[#991B1B] flex items-center justify-between">
+              <span className="text-sm font-medium">{error}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchCustomers}
+                className="ml-4 border-[#DC2626] text-[#DC2626] hover:bg-[#FEE2E2]"
+              >
+                Try Again
+              </Button>
+            </div>
+          )}
+
           {/* Customer Cards */}
-          {filteredCustomers.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <Loader2 className="w-12 h-12 text-[#6B7280] animate-spin mb-4" />
+              <p className="text-[15px] text-[#6B7280]">Loading customers...</p>
+            </div>
+          ) : filteredCustomers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
               <div className="w-[120px] h-[120px] rounded-full bg-[#F3F4F6] flex items-center justify-center mb-6">
                 <Users className="w-16 h-16 text-[#9CA3AF]" />
@@ -538,7 +592,7 @@ export function CustomerManagement() {
               <p className="text-[15px] text-[#6B7280]">No customers match your search filters</p>
             </div>
           ) : (
-            filteredCustomers.map((customer) => <CustomerCard key={customer.id} customer={customer} />)
+            filteredCustomers.map((customer) => <CustomerCard key={customer.id} customer={customer} onStatusChange={handleCustomerStatusChange} />)
           )}
         </div>
       </main>

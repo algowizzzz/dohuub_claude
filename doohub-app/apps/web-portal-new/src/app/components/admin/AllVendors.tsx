@@ -9,6 +9,8 @@ import {
   Building2,
   ChevronLeft,
   ChevronRight,
+  Check,
+  X,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -27,7 +29,7 @@ interface Vendor {
   businessName: string;
   logoUrl?: string;
   category: string;
-  status: "active" | "inactive" | "suspended" | "trial";
+  status: "active" | "inactive" | "suspended" | "trial" | "pending" | "rejected";
   subscriptionPlan: string;
   subscriptionFee: number;
   regions: string[];
@@ -38,322 +40,6 @@ interface Vendor {
   email: string;
   trialDaysLeft?: number;
 }
-
-// Mock data
-const mockVendors: Vendor[] = [
-  {
-    id: "1",
-    businessName: "Sarah's Cleaning Co.",
-    category: "Cleaning Services",
-    status: "active",
-    subscriptionPlan: "Pro Plan",
-    subscriptionFee: 49,
-    regions: ["New York, NY", "Brooklyn, NY"],
-    joinedDate: "2024-10-15",
-    listingsCount: 8,
-    rating: 4.7,
-    reviewCount: 45,
-    email: "sarah@cleaningco.com",
-  },
-  {
-    id: "2",
-    businessName: "QuickFix Handyman",
-    category: "Handyman Services",
-    status: "active",
-    subscriptionPlan: "Basic Plan",
-    subscriptionFee: 29,
-    regions: ["Los Angeles, CA"],
-    joinedDate: "2024-09-20",
-    listingsCount: 12,
-    rating: 4.9,
-    reviewCount: 78,
-    email: "contact@quickfix.com",
-  },
-  {
-    id: "3",
-    businessName: "Green Valley Grocers",
-    category: "Grocery",
-    status: "active",
-    subscriptionPlan: "Pro Plan",
-    subscriptionFee: 49,
-    regions: ["Seattle, WA"],
-    joinedDate: "2024-07-15",
-    listingsCount: 15,
-    rating: 4.8,
-    reviewCount: 187,
-    email: "info@greenvalley.com",
-  },
-  {
-    id: "4",
-    businessName: "Beauty Bliss Salon",
-    category: "Beauty Services",
-    status: "trial",
-    subscriptionPlan: "Trial",
-    subscriptionFee: 0,
-    regions: ["New York, NY"],
-    joinedDate: "2025-01-01",
-    listingsCount: 5,
-    rating: 4.8,
-    reviewCount: 12,
-    email: "hello@beautybliss.com",
-    trialDaysLeft: 3,
-  },
-  {
-    id: "5",
-    businessName: "Tech Repair Pro",
-    category: "Handyman Services",
-    status: "suspended",
-    subscriptionPlan: "Basic Plan",
-    subscriptionFee: 29,
-    regions: ["New York, NY", "Jersey City, NJ"],
-    joinedDate: "2024-08-10",
-    listingsCount: 6,
-    rating: 3.2,
-    reviewCount: 23,
-    email: "support@techrepair.com",
-  },
-  {
-    id: "6",
-    businessName: "Cozy Home Rentals",
-    category: "Rental Properties",
-    status: "active",
-    subscriptionPlan: "Premium Plan",
-    subscriptionFee: 99,
-    regions: ["New York, NY", "Brooklyn, NY", "Queens, NY"],
-    joinedDate: "2024-07-05",
-    listingsCount: 15,
-    rating: 4.6,
-    reviewCount: 89,
-    email: "rentals@cozyhome.com",
-  },
-  {
-    id: "7",
-    businessName: "Farm Fresh Direct",
-    category: "Grocery",
-    status: "active",
-    subscriptionPlan: "Basic Plan",
-    subscriptionFee: 29,
-    regions: ["Portland, OR"],
-    joinedDate: "2024-09-01",
-    listingsCount: 10,
-    rating: 4.7,
-    reviewCount: 98,
-    email: "contact@farmfreshdirect.com",
-  },
-  {
-    id: "8",
-    businessName: "Elite Caregiving Services",
-    category: "Caregiving Services",
-    status: "active",
-    subscriptionPlan: "Pro Plan",
-    subscriptionFee: 49,
-    regions: ["Chicago, IL"],
-    joinedDate: "2024-10-01",
-    listingsCount: 7,
-    rating: 4.9,
-    reviewCount: 34,
-    email: "care@elitecare.com",
-  },
-  {
-    id: "9",
-    businessName: "Sparkle Wash",
-    category: "Cleaning Services",
-    status: "inactive",
-    subscriptionPlan: "Basic Plan",
-    subscriptionFee: 29,
-    regions: ["San Francisco, CA"],
-    joinedDate: "2024-12-30",
-    listingsCount: 0,
-    rating: 0,
-    reviewCount: 0,
-    email: "contact@sparklewash.com",
-  },
-  {
-    id: "10",
-    businessName: "Urban Beauty Products",
-    category: "Beauty Services",
-    status: "active",
-    subscriptionPlan: "Pro Plan",
-    subscriptionFee: 49,
-    regions: ["New York, NY"],
-    joinedDate: "2024-09-15",
-    listingsCount: 25,
-    rating: 4.4,
-    reviewCount: 67,
-    email: "shop@urbanbeauty.com",
-  },
-  {
-    id: "16",
-    businessName: "Luxe Beauty Boutique",
-    category: "Beauty Products",
-    status: "active",
-    subscriptionPlan: "Pro Plan",
-    subscriptionFee: 49,
-    regions: ["Los Angeles, CA"],
-    joinedDate: "2024-08-22",
-    listingsCount: 42,
-    rating: 4.9,
-    reviewCount: 156,
-    email: "info@luxebeauty.com",
-  },
-  {
-    id: "17",
-    businessName: "Natural Glow Cosmetics",
-    category: "Beauty Products",
-    status: "trial",
-    subscriptionPlan: "Trial",
-    subscriptionFee: 0,
-    regions: ["Chicago, IL"],
-    joinedDate: "2025-01-02",
-    listingsCount: 8,
-    rating: 4.6,
-    reviewCount: 23,
-    email: "contact@naturalglow.com",
-    trialDaysLeft: 5,
-  },
-  {
-    id: "11",
-    businessName: "Golden Spoon Restaurant",
-    category: "Food",
-    status: "active",
-    subscriptionPlan: "Pro Plan",
-    subscriptionFee: 49,
-    regions: ["New York, NY", "Brooklyn, NY"],
-    joinedDate: "2024-09-20",
-    listingsCount: 15,
-    rating: 4.9,
-    reviewCount: 342,
-    email: "info@goldenspoon.com",
-  },
-  {
-    id: "12",
-    businessName: "Taste of India Kitchen",
-    category: "Food",
-    status: "active",
-    subscriptionPlan: "Basic Plan",
-    subscriptionFee: 29,
-    regions: ["Los Angeles, CA", "Santa Monica, CA"],
-    joinedDate: "2024-11-05",
-    listingsCount: 12,
-    rating: 4.8,
-    reviewCount: 267,
-    email: "orders@tasteofindia.com",
-  },
-  {
-    id: "13",
-    businessName: "Vegan Delights Cafe",
-    category: "Food",
-    status: "active",
-    subscriptionPlan: "Pro Plan",
-    subscriptionFee: 49,
-    regions: ["San Francisco, CA"],
-    joinedDate: "2024-10-12",
-    listingsCount: 10,
-    rating: 4.7,
-    reviewCount: 198,
-    email: "hello@vegandelights.com",
-  },
-  {
-    id: "28",
-    businessName: "CareWheels Transportation",
-    category: "Ride Assistance",
-    status: "active",
-    subscriptionPlan: "Pro Plan",
-    subscriptionFee: 49,
-    regions: ["New York, NY", "Brooklyn, NY"],
-    joinedDate: "2024-09-15",
-    listingsCount: 1,
-    rating: 4.9,
-    reviewCount: 187,
-    email: "info@carewheels.com",
-  },
-  {
-    id: "29",
-    businessName: "Senior Care Rides",
-    category: "Ride Assistance",
-    status: "active",
-    subscriptionPlan: "Basic Plan",
-    subscriptionFee: 29,
-    regions: ["Queens, NY", "Manhattan, NY"],
-    joinedDate: "2024-10-20",
-    listingsCount: 1,
-    rating: 4.8,
-    reviewCount: 142,
-    email: "rides@seniorcare.com",
-  },
-  {
-    id: "30",
-    businessName: "SafeTransit Solutions",
-    category: "Ride Assistance",
-    status: "trial",
-    subscriptionPlan: "Trial",
-    subscriptionFee: 0,
-    regions: ["Manhattan, NY"],
-    joinedDate: "2025-01-03",
-    listingsCount: 1,
-    rating: 4.9,
-    reviewCount: 103,
-    email: "contact@safetransit.com",
-    trialDaysLeft: 7,
-  },
-  {
-    id: "31",
-    businessName: "Urban Beauty Products",
-    category: "Beauty Services",
-    status: "active",
-    subscriptionPlan: "Pro Plan",
-    subscriptionFee: 49,
-    regions: ["New York, NY"],
-    joinedDate: "2024-09-15",
-    listingsCount: 25,
-    rating: 4.4,
-    reviewCount: 67,
-    email: "shop@urbanbeauty.com",
-  },
-  {
-    id: "35",
-    businessName: "Caring Hearts Companions",
-    category: "Companionship Support",
-    status: "active",
-    subscriptionPlan: "Pro Plan",
-    subscriptionFee: 49,
-    regions: ["New York, NY", "Brooklyn, NY"],
-    joinedDate: "2024-08-10",
-    listingsCount: 1,
-    rating: 4.9,
-    reviewCount: 143,
-    email: "info@caringhearts.com",
-  },
-  {
-    id: "36",
-    businessName: "Golden Years Companionship",
-    category: "Companionship Support",
-    status: "active",
-    subscriptionPlan: "Basic Plan",
-    subscriptionFee: 29,
-    regions: ["Queens, NY", "Manhattan, NY"],
-    joinedDate: "2024-09-20",
-    listingsCount: 1,
-    rating: 4.8,
-    reviewCount: 98,
-    email: "hello@goldenyears.com",
-  },
-  {
-    id: "37",
-    businessName: "Friendship & Care Services",
-    category: "Companionship Support",
-    status: "trial",
-    subscriptionPlan: "Trial",
-    subscriptionFee: 0,
-    regions: ["Manhattan, NY"],
-    joinedDate: "2025-01-04",
-    listingsCount: 1,
-    rating: 4.9,
-    reviewCount: 34,
-    email: "contact@friendshipcare.com",
-    trialDaysLeft: 6,
-  },
-];
 
 const getCategoryIcon = (category: string) => {
   const icons: Record<string, string> = {
@@ -377,6 +63,8 @@ const getStatusColor = (status: string) => {
     inactive: { dot: "bg-[#9CA3AF]", text: "text-[#9CA3AF]" },
     suspended: { dot: "bg-[#DC2626]", text: "text-[#DC2626]" },
     trial: { dot: "bg-[#3B82F6]", text: "text-[#3B82F6]" },
+    pending: { dot: "bg-[#F59E0B]", text: "text-[#F59E0B]" },
+    rejected: { dot: "bg-[#991B1B]", text: "text-[#991B1B]" },
   };
   return colors[status] || colors.inactive;
 };
@@ -387,11 +75,13 @@ const getStatusLabel = (status: string) => {
     inactive: "Inactive",
     suspended: "Suspended",
     trial: "Trial",
+    pending: "Pending Approval",
+    rejected: "Rejected",
   };
   return labels[status] || status;
 };
 
-function VendorCard({ vendor, onSuspend, onUnsuspend }: { vendor: Vendor; onSuspend?: (id: string) => void; onUnsuspend?: (id: string) => void }) {
+function VendorCard({ vendor, onSuspend, onUnsuspend, onApprove, onReject }: { vendor: Vendor; onSuspend?: (id: string) => void; onUnsuspend?: (id: string) => void; onApprove?: (id: string) => void; onReject?: (id: string) => void }) {
   const navigate = useNavigate();
   const statusColor = getStatusColor(vendor.status);
 
@@ -499,7 +189,28 @@ function VendorCard({ vendor, onSuspend, onUnsuspend }: { vendor: Vendor; onSusp
               <span className="sm:hidden">View</span>
             </Button>
 
-            {vendor.status === "active" || vendor.status === "trial" ? (
+            {vendor.status === "pending" ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-[#10B981] border-[#D1FAE5] hover:bg-[#D1FAE5] hover:text-[#10B981] flex-1 sm:flex-none"
+                  onClick={() => onApprove?.(vendor.id)}
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Approve
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-[#DC2626] border-[#FEE2E2] hover:bg-[#FEE2E2] hover:text-[#DC2626] flex-1 sm:flex-none"
+                  onClick={() => onReject?.(vendor.id)}
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Reject
+                </Button>
+              </>
+            ) : vendor.status === "active" || vendor.status === "trial" ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -566,34 +277,26 @@ export function AllVendors() {
       const response = await api.getVendors();
       // Transform API response to match our Vendor interface
       const vendorData = Array.isArray(response) ? response : (response as any)?.data || [];
-      if (vendorData.length > 0) {
-        setVendors(vendorData.map((v: any) => ({
-          id: v.id,
-          businessName: v.businessName || v.name || 'Unknown',
-          logoUrl: v.logo || v.logoUrl,
-          category: v.category || 'General',
-          status: (v.status || 'active').toLowerCase() as Vendor['status'],
-          subscriptionPlan: v.subscriptionPlan || 'Basic Plan',
-          subscriptionFee: v.subscriptionFee || 29,
-          regions: v.regions || [],
-          joinedDate: v.createdAt || v.joinedDate || new Date().toISOString(),
-          listingsCount: v.listingCount || v.listingsCount || 0,
-          rating: v.rating || 0,
-          reviewCount: v.reviewCount || 0,
-          email: v.email || '',
-          trialDaysLeft: v.trialDaysLeft,
-        })));
-        setError(null);
-      } else {
-        // No vendors from API, use mock data for demo
-        setVendors(mockVendors);
-        setError('Using demo data - no vendors in database');
-      }
+      setVendors(vendorData.map((v: any) => ({
+        id: v.id,
+        businessName: v.businessName || v.name || 'Unknown',
+        logoUrl: v.logo || v.logoUrl,
+        category: v.category || 'General',
+        status: (v.status || 'active').toLowerCase() as Vendor['status'],
+        subscriptionPlan: v.subscriptionPlan || 'Basic Plan',
+        subscriptionFee: v.subscriptionFee || 29,
+        regions: v.regions || [],
+        joinedDate: v.createdAt || v.joinedDate || new Date().toISOString(),
+        listingsCount: v.listingCount || v.listingsCount || 0,
+        rating: v.rating || 0,
+        reviewCount: v.reviewCount || 0,
+        email: v.email || '',
+        trialDaysLeft: v.trialDaysLeft,
+      })));
+      setError(null);
     } catch (err: any) {
-      console.error('Failed to fetch vendors from API, using mock data:', err);
-      // Use mock data if API fails
-      setVendors(mockVendors);
-      setError('Using demo data - API not available');
+      console.error('Failed to fetch vendors:', err);
+      setError(err?.response?.data?.error || 'Failed to load vendors. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -630,19 +333,8 @@ export function AllVendors() {
       setActionFeedback({ type: 'success', message: `${vendor?.businessName || 'Vendor'} has been suspended` });
     } catch (err: any) {
       console.error('Failed to suspend vendor:', err);
-      const errorMsg = err?.response?.data?.error || err?.message || 'Failed to suspend vendor';
-      // Check if using demo data (mock IDs won't exist in API)
-      if (error?.includes('demo data')) {
-        // Update local state for demo purposes
-        setVendors((prev) =>
-          prev.map((v) =>
-            v.id === vendorId ? { ...v, status: "suspended" as const } : v
-          )
-        );
-        setActionFeedback({ type: 'success', message: `${vendor?.businessName || 'Vendor'} suspended (demo mode)` });
-      } else {
-        setActionFeedback({ type: 'error', message: errorMsg });
-      }
+      const errorMsg = err?.response?.data?.error || err?.message || 'Failed to suspend vendor. Please try again.';
+      setActionFeedback({ type: 'error', message: errorMsg });
     } finally {
       setIsUpdating(null);
     }
@@ -665,19 +357,56 @@ export function AllVendors() {
       setActionFeedback({ type: 'success', message: `${vendor?.businessName || 'Vendor'} has been activated` });
     } catch (err: any) {
       console.error('Failed to activate vendor:', err);
-      const errorMsg = err?.response?.data?.error || err?.message || 'Failed to activate vendor';
-      // Check if using demo data (mock IDs won't exist in API)
-      if (error?.includes('demo data')) {
-        // Update local state for demo purposes
-        setVendors((prev) =>
-          prev.map((v) =>
-            v.id === vendorId ? { ...v, status: "active" as const } : v
-          )
-        );
-        setActionFeedback({ type: 'success', message: `${vendor?.businessName || 'Vendor'} activated (demo mode)` });
-      } else {
-        setActionFeedback({ type: 'error', message: errorMsg });
-      }
+      const errorMsg = err?.response?.data?.error || err?.message || 'Failed to activate vendor. Please try again.';
+      setActionFeedback({ type: 'error', message: errorMsg });
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
+  const handleApprove = async (vendorId: string) => {
+    const vendor = vendors.find(v => v.id === vendorId);
+    if (!window.confirm(`Are you sure you want to approve ${vendor?.businessName || 'this vendor'}?`)) return;
+
+    setIsUpdating(vendorId);
+    setActionFeedback(null);
+    try {
+      await api.updateVendorStatus(vendorId, 'APPROVED');
+      // Update local state
+      setVendors((prev) =>
+        prev.map((v) =>
+          v.id === vendorId ? { ...v, status: "active" as const } : v
+        )
+      );
+      setActionFeedback({ type: 'success', message: `${vendor?.businessName || 'Vendor'} has been approved` });
+    } catch (err: any) {
+      console.error('Failed to approve vendor:', err);
+      const errorMsg = err?.response?.data?.error || err?.message || 'Failed to approve vendor. Please try again.';
+      setActionFeedback({ type: 'error', message: errorMsg });
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
+  const handleReject = async (vendorId: string) => {
+    const vendor = vendors.find(v => v.id === vendorId);
+    if (!window.confirm(`Are you sure you want to reject ${vendor?.businessName || 'this vendor'}? This action cannot be undone.`)) return;
+
+    setIsUpdating(vendorId);
+    setActionFeedback(null);
+    try {
+      await api.updateVendorStatus(vendorId, 'REJECTED');
+      // Update local state
+      setVendors((prev) =>
+        prev.map((v) =>
+          v.id === vendorId ? { ...v, status: "rejected" as const } : v
+        )
+      );
+      setActionFeedback({ type: 'success', message: `${vendor?.businessName || 'Vendor'} has been rejected` });
+    } catch (err: any) {
+      console.error('Failed to reject vendor:', err);
+      const errorMsg = err?.response?.data?.error || err?.message || 'Failed to reject vendor. Please try again.';
+      setActionFeedback({ type: 'error', message: errorMsg });
     } finally {
       setIsUpdating(null);
     }
@@ -687,6 +416,7 @@ export function AllVendors() {
   const totalVendors = vendors.length;
   const activeVendors = vendors.filter((v) => v.status === "active" || v.status === "trial").length;
   const suspendedVendors = vendors.filter((v) => v.status === "suspended").length;
+  const pendingVendors = vendors.filter((v) => v.status === "pending").length;
 
   // Get available regions based on selected country
   const getRegionsByCountry = () => {
@@ -830,16 +560,24 @@ export function AllVendors() {
             </div>
           )}
 
-          {/* Data Source Indicator */}
+          {/* Error Banner */}
           {error && (
-            <div className="mb-4 p-3 rounded-lg bg-[#FEF3C7] border border-[#F59E0B] text-[#92400E] text-sm">
-              {error}
+            <div className="mb-4 p-4 rounded-lg bg-[#FEE2E2] border border-[#DC2626] text-[#991B1B] flex items-center justify-between">
+              <span className="text-sm font-medium">{error}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchVendors}
+                className="ml-4 border-[#DC2626] text-[#DC2626] hover:bg-[#FEE2E2]"
+              >
+                Try Again
+              </Button>
             </div>
           )}
 
           {/* Quick Stats Bar */}
           <div className="bg-[#F8F9FA] border border-[#E5E7EB] rounded-lg p-4 sm:p-5 mb-6">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-[#6B7280]">Total:</span>
                 <span className="text-lg sm:text-xl font-bold text-[#1F2937]">
@@ -853,7 +591,16 @@ export function AllVendors() {
                 </span>
               </div>
               <div
-                className="flex items-center gap-2 cursor-pointer"
+                className="flex items-center gap-2 cursor-pointer hover:opacity-80"
+                onClick={() => setStatusFilter("pending")}
+              >
+                <span className="text-sm text-[#6B7280]">Pending:</span>
+                <span className="text-lg sm:text-xl font-bold text-[#F59E0B]">
+                  {pendingVendors}
+                </span>
+              </div>
+              <div
+                className="flex items-center gap-2 cursor-pointer hover:opacity-80"
                 onClick={() => setStatusFilter("suspended")}
               >
                 <span className="text-sm text-[#6B7280]">Suspended:</span>
@@ -907,9 +654,11 @@ export function AllVendors() {
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="active">✅ Active</SelectItem>
+                  <SelectItem value="pending">⏳ Pending Approval</SelectItem>
                   <SelectItem value="inactive">⏸️ Inactive</SelectItem>
                   <SelectItem value="suspended">🚫 Suspended</SelectItem>
                   <SelectItem value="trial">📋 Trial Period</SelectItem>
+                  <SelectItem value="rejected">❌ Rejected</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -970,7 +719,14 @@ export function AllVendors() {
           ) : (
             <>
               {paginatedVendors.map((vendor) => (
-                <VendorCard key={vendor.id} vendor={vendor} onSuspend={handleSuspend} onUnsuspend={handleUnsuspend} />
+                <VendorCard
+                  key={vendor.id}
+                  vendor={vendor}
+                  onSuspend={handleSuspend}
+                  onUnsuspend={handleUnsuspend}
+                  onApprove={handleApprove}
+                  onReject={handleReject}
+                />
               ))}
 
               {/* Pagination */}

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { api } from "../../../services/api";
 import {
   TrendingUp,
   TrendingDown,
@@ -85,52 +86,113 @@ export function PlatformReports() {
   };
 
   const [dateRange, setDateRange] = useState("30days");
+  const [kpis, setKpis] = useState<KPIMetric[]>([]);
+  const [topPerformers, setTopPerformers] = useState<TopPerformer[]>([]);
+  const [healthMetrics, setHealthMetrics] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock KPI data
-  const kpis: KPIMetric[] = [
-    {
-      label: "Revenue",
-      value: "$45,234",
-      change: 23,
-      icon: <DollarSign className="w-6 h-6" />,
-      color: "bg-[#10B981]",
-    },
-    {
-      label: "Bookings",
-      value: "678",
-      change: 15,
-      icon: <ShoppingBag className="w-6 h-6" />,
-      color: "bg-[#3B82F6]",
-    },
-    {
-      label: "New Users",
-      value: "156",
-      change: 8,
-      icon: <Users className="w-6 h-6" />,
-      color: "bg-[#8B5CF6]",
-    },
-    {
-      label: "Active Vendors",
-      value: "245",
-      change: 12,
-      icon: <Store className="w-6 h-6" />,
-      color: "bg-[#F59E0B]",
-    },
-  ];
+  // Fetch platform reports from API
+  useEffect(() => {
+    const fetchReports = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
 
-  const topPerformers: TopPerformer[] = [
-    { label: "Top Vendor", value: "Sarah's Cleaning", metric: "$12,450 revenue" },
-    { label: "Top Service", value: "Deep Cleaning", metric: "89 bookings" },
-    { label: "Top Region", value: "New York, NY", metric: "234 bookings" },
-    { label: "Top Customer", value: "John D.", metric: "$847 spent" },
-  ];
+        const reportsData: any = await api.get('/reports/platform', { params: { dateRange } });
 
-  const healthMetrics = [
-    { label: "Customer Satisfaction", value: "4.6⭐ average", status: "good" },
-    { label: "Vendor Retention", value: "92%", status: "good" },
-    { label: "Booking Completion Rate", value: "94%", status: "good" },
-    { label: "Dispute Rate", value: "2.1%", status: "warning" },
-  ];
+        // Map KPIs
+        const mappedKPIs: KPIMetric[] = [
+          {
+            label: "Revenue",
+            value: `$${(reportsData.revenue?.total || 0).toLocaleString()}`,
+            change: reportsData.revenue?.changePercent || 0,
+            icon: <DollarSign className="w-6 h-6" />,
+            color: "bg-[#10B981]",
+          },
+          {
+            label: "Bookings",
+            value: (reportsData.bookings?.total || 0).toLocaleString(),
+            change: reportsData.bookings?.changePercent || 0,
+            icon: <ShoppingBag className="w-6 h-6" />,
+            color: "bg-[#3B82F6]",
+          },
+          {
+            label: "New Users",
+            value: (reportsData.users?.new || 0).toLocaleString(),
+            change: reportsData.users?.changePercent || 0,
+            icon: <Users className="w-6 h-6" />,
+            color: "bg-[#8B5CF6]",
+          },
+          {
+            label: "Active Vendors",
+            value: (reportsData.vendors?.active || 0).toLocaleString(),
+            change: reportsData.vendors?.changePercent || 0,
+            icon: <Store className="w-6 h-6" />,
+            color: "bg-[#F59E0B]",
+          },
+        ];
+        setKpis(mappedKPIs);
+
+        // Map top performers
+        const mappedPerformers: TopPerformer[] = [
+          { 
+            label: "Top Vendor", 
+            value: reportsData.topVendor?.name || "N/A", 
+            metric: `$${(reportsData.topVendor?.revenue || 0).toLocaleString()} revenue` 
+          },
+          { 
+            label: "Top Service", 
+            value: reportsData.topService?.name || "N/A", 
+            metric: `${reportsData.topService?.bookings || 0} bookings` 
+          },
+          { 
+            label: "Top Region", 
+            value: reportsData.topRegion?.name || "N/A", 
+            metric: `${reportsData.topRegion?.bookings || 0} bookings` 
+          },
+          { 
+            label: "Top Customer", 
+            value: reportsData.topCustomer?.name || "N/A", 
+            metric: `$${(reportsData.topCustomer?.spent || 0).toLocaleString()} spent` 
+          },
+        ];
+        setTopPerformers(mappedPerformers);
+
+        // Map health metrics
+        const mappedHealth = [
+          { 
+            label: "Customer Satisfaction", 
+            value: `${reportsData.satisfaction?.average || 0}⭐ average`, 
+            status: reportsData.satisfaction?.average >= 4.5 ? "good" : "warning" 
+          },
+          { 
+            label: "Vendor Retention", 
+            value: `${reportsData.vendorRetention || 0}%`, 
+            status: reportsData.vendorRetention >= 90 ? "good" : "warning" 
+          },
+          { 
+            label: "Booking Completion Rate", 
+            value: `${reportsData.completionRate || 0}%`, 
+            status: reportsData.completionRate >= 90 ? "good" : "warning" 
+          },
+          { 
+            label: "Dispute Rate", 
+            value: `${reportsData.disputeRate || 0}%`, 
+            status: reportsData.disputeRate <= 5 ? "good" : "warning" 
+          },
+        ];
+        setHealthMetrics(mappedHealth);
+      } catch (err: any) {
+        console.error("Failed to fetch platform reports:", err);
+        setError(err.response?.data?.error || "Failed to load reports. Please try again later.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchReports();
+  }, [dateRange]);
 
   return (
     <div className="min-h-screen bg-white">
@@ -160,6 +222,21 @@ export function PlatformReports() {
               Platform-wide performance metrics and insights
             </p>
           </div>
+
+          {isLoading && (
+            <div className="text-center py-12">
+              <p className="text-[#6B7280]">Loading reports...</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+              <p className="text-red-800">{error}</p>
+            </div>
+          )}
+
+          {!isLoading && !error && (
+            <>
 
           {/* Tabs */}
           <Tabs defaultValue="overview" className="w-full">
@@ -484,6 +561,8 @@ export function PlatformReports() {
             </TabsContent>
           </Tabs>
         </div>
+          </>
+          )}
       </main>
     </div>
   );

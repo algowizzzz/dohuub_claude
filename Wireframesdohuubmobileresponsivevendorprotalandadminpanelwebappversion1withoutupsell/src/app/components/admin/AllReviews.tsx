@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { api } from "../../../services/api";
 import {
   Star,
   Search,
@@ -57,10 +58,7 @@ interface Review {
   createdAt: string;
 }
 
-// Mock data
-const mockReviews: Review[] = [
-  {
-    id: "REV001",
+function ReviewCard({ review }: { review: Review }) {
     rating: 5,
     customerName: "Sarah J.",
     customerId: "C123",
@@ -366,9 +364,57 @@ export function AllReviews() {
     }
   };
 
-  const [reviews] = useState<Review[]>(mockReviews);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [ratingFilter, setRatingFilter] = useState("all");
+
+  // Fetch reviews from API
+  useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const response: any = await api.getReviews();
+        const mappedReviews: Review[] = (response.reviews || response || []).map((review: any) => ({
+          id: review.id,
+          rating: review.rating || 0,
+          customerName: review.customer?.name || review.customerName,
+          customerId: review.customer?.id || review.customerId,
+          verified: review.customer?.verified || review.verified || false,
+          serviceName: review.listing?.name || review.serviceName,
+          vendorName: review.vendor?.name || review.vendorName,
+          vendorId: review.vendor?.id || review.vendorId,
+          bookingId: review.booking?.id || review.bookingId,
+          bookingDate: review.booking?.date || review.bookingDate,
+          reviewText: review.text || review.reviewText || review.comment,
+          photos: review.photos || review.images || [],
+          vendorResponse: review.vendorResponse ? {
+            text: review.vendorResponse.text || review.vendorResponse.response,
+            respondedAt: review.vendorResponse.createdAt || review.vendorResponse.respondedAt,
+          } : undefined,
+          helpfulCount: review.helpfulCount || 0,
+          flagged: review.flagged || false,
+          flagReason: review.flagReason,
+          flaggedBy: review.flaggedBy,
+          status: review.status || "published",
+          createdAt: review.createdAt,
+        }));
+
+        setReviews(mappedReviews);
+      } catch (err: any) {
+        console.error("Failed to fetch reviews:", err);
+        setError(err.response?.data?.error || "Failed to load reviews. Please try again later.");
+        setReviews([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchReviews();
+  }, []);
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("recent");
 

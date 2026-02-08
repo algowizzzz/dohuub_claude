@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft, Plus, Edit, Trash2, MapPin, Check } from "lucide-react";
+import { api } from "../../../services/api";
 import { VendorSidebar } from "./VendorSidebar";
 import { VendorTopNav } from "./VendorTopNav";
 import { Button } from "../ui/button";
@@ -39,29 +40,45 @@ export function VendorGeographicRegions() {
     }
   };
 
-  // Mock store data
-  const storeName = "John's Cleaning Services";
+  const [storeName, setStoreName] = useState<string>("");
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const [regions, setRegions] = useState<Region[]>([
-    {
-      id: "1",
-      name: "Downtown San Francisco",
-      zipCodes: ["94102", "94103", "94104"],
-      isActive: true,
-    },
-    {
-      id: "2",
-      name: "Mission District",
-      zipCodes: ["94110", "94114"],
-      isActive: true,
-    },
-    {
-      id: "3",
-      name: "Richmond District",
-      zipCodes: ["94118", "94121"],
-      isActive: false,
-    },
-  ]);
+  // Fetch vendor regions from API
+  useEffect(() => {
+    const fetchRegions = async () => {
+      if (!storeId) return;
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Fetch store details
+        const storeData: any = await api.getStoreById(storeId);
+        setStoreName(storeData.name || storeData.businessName || "Store");
+
+        // Fetch regions for this store
+        const response: any = await api.get(`/stores/${storeId}/regions`);
+        const mappedRegions: Region[] = (response.regions || response || []).map((region: any) => ({
+          id: region.id,
+          name: region.name || region.regionName,
+          zipCodes: region.zipCodes || region.zipcodes || [],
+          isActive: region.isActive !== false,
+        }));
+
+        setRegions(mappedRegions);
+      } catch (err: any) {
+        console.error("Failed to fetch regions:", err);
+        setError(err.response?.data?.error || "Failed to load regions. Please try again later.");
+        setRegions([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRegions();
+  }, [storeId]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -191,13 +208,27 @@ export function VendorGeographicRegions() {
                 Manage service areas for {storeName}
               </p>
             </div>
-            <Button onClick={() => handleOpenDialog()}>
+            <Button onClick={() => handleOpenDialog()} disabled={isLoading}>
               <Plus className="w-4 h-4 mr-2" />
               Add Region
             </Button>
           </div>
 
-          {/* Info Alert */}
+          {isLoading && (
+            <div className="text-center py-12">
+              <p className="text-[#6B7280]">Loading regions...</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+              <p className="text-red-800">{error}</p>
+            </div>
+          )}
+
+          {!isLoading && !error && (
+            <>
+              {/* Info Alert */}
           <div className="bg-[#F0F9FF] border border-[#BFDBFE] rounded-xl p-4 mb-6">
             <div className="flex gap-3">
               <MapPin className="w-5 h-5 text-[#1E40AF] flex-shrink-0 mt-0.5" />
@@ -328,6 +359,8 @@ export function VendorGeographicRegions() {
                 </div>
               ))}
             </div>
+          )}
+            </>
           )}
         </div>
       </main>
